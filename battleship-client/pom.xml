@@ -8,14 +8,48 @@
     </parent>
     <artifactId>battleship-client</artifactId>
     <packaging>jar</packaging>
+
     <properties>
-        <exec.mainClass>com.mycompany.battleship.client.BattleshipClient</exec.mainClass>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <javafx.version>21.0.1</javafx.version>
+        <exec.mainClass>client.gui.LoginGUI</exec.mainClass>
     </properties>
+
     <dependencies>
-    <dependency>
-        <groupId>${project.groupId}</groupId>
-        <artifactId>battleship-common</artifactId>
-        <version>${project.version}</version>
-    </dependency>
+        <!-- Module Common dùng chung giữa Client và Server -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>battleship-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Thư viện JavaFX Controls (Button, Label, TextField...) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+
+        <!-- Thư viện JavaFX FXML -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Plugin hỗ trợ chạy trực tiếp JavaFX trên Maven -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.8</version>
+                <configuration>
+                    <mainClass>client.gui.SplashGUI</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

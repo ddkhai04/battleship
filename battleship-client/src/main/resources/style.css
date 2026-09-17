@@ -1,0 +1,300 @@
+/* ==================================================================
+   BATTLESHIP ONLINE - style.css
+   Phong cach: Ships 3D / Bien troi tuoi sang (Light Blue Ocean)
+
+   Cach dung: nap file nay vao Scene bang:
+       scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
+   Ghi chu: JavaFX CSS KHONG ho tro thuoc tinh "letter-spacing" nhu CSS
+   web thong thuong. De tao hieu ung "tracking rong" cho tieu de, minh
+   chen khoang trang thu cong giua cac ky tu ngay trong chuoi Java
+   (vi du: "Đ Ă N G   N H Ậ P"), khong the lam bang CSS.
+
+   Bang mau chu dao (ghi chu de sau nay de doi mau nhanh hon):
+       - Nen troi/bien nhat : #eaf6fb -> #bfe3f2
+       - Xanh bien dam (dai mau, header) : #2f9bd6 -> #1c6fa8
+       - Do cam (nut chinh, giong nut "BAT DAU CHOI") : #f2603f -> #d94a2f
+       - Chu tieu de / input (Navy dam de de doc) : #1b2a3a
+       - Kinh mo (form-card) : rgba(255,255,255,0.55)
+   ================================================================== */
+
+/* ------------------------------------------------------------------
+   1. NEN TONG THE (Login/Register) - bau troi xanh nhat, se de anh nen len tren
+   ------------------------------------------------------------------ */
+.root {
+    -fx-font-family: "Segoe UI", Arial, sans-serif;
+    -fx-background-color: linear-gradient(to bottom, #eaf6fb, #bfe3f2 60%, #8fd0e8);
+}
+
+/* ------------------------------------------------------------------
+   2. THE FORM (VBox chua o nhap) - hieu ung KINH MO (Frosted Glass)
+   De form noi ro tren nen anh (troi/bien/tau cuop bien) ma khong bi
+   choi mau hay lam toi anh nen phia sau.
+   ------------------------------------------------------------------ */
+.form-card {
+    -fx-background-color: rgba(255, 255, 255, 0.55);
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(255, 255, 255, 0.75);
+    -fx-border-width: 1.5;
+    -fx-border-radius: 18;
+    -fx-effect: dropshadow(gaussian, rgba(20, 60, 90, 0.35), 28, 0.1, 0, 10);
+}
+
+/* ------------------------------------------------------------------
+   3. TIEU DE - chu mau Navy dam de noi bat tren nen kinh mo sang mau
+   ------------------------------------------------------------------ */
+.title-label {
+    -fx-text-fill: #1b2a3a;
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
+}
+
+.subtitle-label {
+    -fx-text-fill: #d94a2f;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* ------------------------------------------------------------------
+   4. O NHAP LIEU (TextField / PasswordField) - nen trang trong, chu Navy
+   ------------------------------------------------------------------ */
+.input-field {
+    -fx-background-color: rgba(255, 255, 255, 0.75);
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(27, 42, 58, 0.25);
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-text-fill: #1b2a3a;
+    -fx-prompt-text-fill: #6b8195;
+    -fx-padding: 12px;
+    -fx-font-size: 14px;
+}
+
+/* Vien sang xanh bien khi dang duoc chon (focus) */
+.input-field:focused {
+    -fx-border-color: #2f9bd6;
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+}
+
+/* ------------------------------------------------------------------
+   5. THONG BAO (label loi / dang xu ly)
+   ------------------------------------------------------------------ */
+.message-label {
+    -fx-font-size: 12.5px;
+}
+
+/* Trang thai dang xu ly / dang ket noi (xanh bien) */
+.message-info {
+    -fx-text-fill: #1c6fa8;
+}
+
+/* Trang thai loi (do dam - khac voi do cam cua nut chinh de de phan biet) */
+.message-error {
+    -fx-text-fill: #c0392b;
+}
+
+/* ------------------------------------------------------------------
+   6. NUT CHINH (Dang nhap / Dang ky) - Do Cam giong nut "BAT DAU CHOI"
+   ------------------------------------------------------------------ */
+.btn-primary {
+    -fx-background-color: #f2603f;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-padding: 12px;
+    -fx-background-radius: 24;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.45), 14, 0, 0, 5);
+}
+
+.btn-primary:hover {
+    -fx-background-color: #e14f30;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.65), 18, 0, 0, 6);
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #d94a2f;
+}
+
+.btn-primary:disabled {
+    -fx-opacity: 0.55;
+    -fx-effect: none;
+}
+
+/* ------------------------------------------------------------------
+   7. NUT CANH BAO / HUY (mau do dam) - danh cho dang xuat, xoa, huy...
+   ------------------------------------------------------------------ */
+.btn-danger {
+    -fx-background-color: #e63946;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-padding: 12px;
+    -fx-background-radius: 24;
+    -fx-cursor: hand;
+}
+
+.btn-danger:hover {
+    -fx-background-color: #c9303c;
+}
+
+/* ------------------------------------------------------------------
+   8. NUT DANG LIEN KET (Chuyen sang Dang ky / Quay lai Dang nhap)
+   ------------------------------------------------------------------ */
+.btn-link {
+    -fx-background-color: transparent;
+    -fx-text-fill: #4a6478;
+    -fx-font-size: 13px;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.btn-link:hover {
+    -fx-text-fill: #d94a2f;
+}
+
+/* ==================================================================
+   PHAN SANH CHO (LobbyGUI) - sang sua, dai mau xanh bien/troi
+   ================================================================== */
+
+/* ------------------------------------------------------------------
+   9. NEN TONG THE SANH CHO (BorderPane goc)
+   ------------------------------------------------------------------ */
+.lobby-root {
+    -fx-background-color: linear-gradient(to bottom, #eaf6fb, #cfeaf5 50%, #a9d9ec);
+}
+
+/* ------------------------------------------------------------------
+   10. THANH TIEU DE TREN CUNG (header bar) - dai mau xanh bien dam
+   ------------------------------------------------------------------ */
+.header-bar {
+    -fx-background-color: linear-gradient(to right, #2f9bd6, #1c6fa8);
+    -fx-effect: dropshadow(gaussian, rgba(20, 60, 90, 0.25), 12, 0, 0, 3);
+}
+
+.header-title {
+    -fx-text-fill: white;
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+}
+
+.header-user {
+    -fx-text-fill: #eaf6fb;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.header-score {
+    -fx-text-fill: #ffe08a;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+/* ------------------------------------------------------------------
+   11. TAB PANE (Danh sach nguoi choi / Lich su / Xep hang)
+   ------------------------------------------------------------------ */
+.custom-tabpane {
+    -fx-background-color: transparent;
+}
+
+.custom-tabpane .tab-header-background {
+    -fx-background-color: #cfeaf5;
+}
+
+.custom-tabpane .tab {
+    -fx-background-color: #e3f3fa;
+    -fx-background-radius: 6 6 0 0;
+}
+
+.custom-tabpane .tab:selected {
+    -fx-background-color: #2f9bd6;
+}
+
+.custom-tabpane .tab-label {
+    -fx-text-fill: #1b2a3a;
+    -fx-font-weight: bold;
+    -fx-font-size: 12.5px;
+}
+
+.custom-tabpane .tab:selected .tab-label {
+    -fx-text-fill: white;
+}
+
+.custom-tabpane .tab-content-area {
+    -fx-background-color: #f4fbfd;
+}
+
+/* ------------------------------------------------------------------
+   12. NUT PHU (Tim kiem / Lam moi) - xanh bien, dong bo header
+   ------------------------------------------------------------------ */
+.btn-secondary {
+    -fx-background-color: #2f9bd6;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-padding: 8px 16px;
+    -fx-cursor: hand;
+}
+
+.btn-secondary:hover {
+    -fx-background-color: #1c6fa8;
+}
+
+/* ------------------------------------------------------------------
+   13. NUT THACH DAU TRONG BANG - mau vang/cam de noi bat, khong trung
+   voi mau do cam cua nut chinh
+   ------------------------------------------------------------------ */
+.btn-challenge {
+    -fx-background-color: #ffa726;
+    -fx-text-fill: #1b2a3a;
+    -fx-font-weight: bold;
+    -fx-background-radius: 6;
+    -fx-padding: 4px 12px;
+    -fx-cursor: hand;
+}
+
+.btn-challenge:hover {
+    -fx-background-color: #fb8c00;
+}
+
+/* ------------------------------------------------------------------
+   14. BANG DU LIEU (TableView) - nen sang, so le xanh nhat, khong con
+   mau den ngom nhu ban truoc
+   ------------------------------------------------------------------ */
+.data-table {
+    -fx-background-color: #f4fbfd;
+    -fx-control-inner-background: #f4fbfd;
+    -fx-table-cell-border-color: transparent;
+    -fx-border-color: #cfeaf5;
+    -fx-border-width: 1;
+}
+
+.data-table .column-header-background {
+    -fx-background-color: #2f9bd6;
+}
+
+.data-table .column-header .label {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+}
+
+.data-table .table-row-cell {
+    -fx-background-color: #f4fbfd;
+    -fx-table-cell-border-color: transparent;
+    -fx-text-fill: #1b2a3a;
+}
+
+.data-table .table-row-cell:odd {
+    -fx-background-color: #e3f3fa;
+}
+
+.data-table .table-row-cell:selected {
+    -fx-background-color: rgba(242, 96, 63, 0.25);
+}
+
+.data-table .table-cell {
+    -fx-text-fill: #1b2a3a;
+}
+
+.data-table .placeholder .label {
+    -fx-text-fill: #6b8195;
+}
