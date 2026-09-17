@@ -1,6 +1,7 @@
 package com.mycompany.battleship.server;
 
 import com.mycompany.battleship.common.model.User;
+import com.mycompany.battleship.common.model.UserDTO;
 import com.mycompany.battleship.server.dao.UserDAO;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -52,6 +53,7 @@ public class ClientHandler implements Runnable {
                         if (parts.length >= 2) handleInvite(parts[1]);
                         break;
                     case "ACCEPT":
+                    case "INVITE_ACCEPT":    
                         if (parts.length >= 2) handleAccept(parts[1]);
                         break;
                     case "REJECT":
@@ -88,6 +90,14 @@ public class ClientHandler implements Runnable {
         
         // Kiểm tra mật khẩu bằng Java
         if (user != null && user.getPassword().equals(password)) {
+            
+            // --- KIỂM TRA CHỐNG TRÙNG TÀI KHOẢN ---
+            if (BattleshipServer.onlineUsers.containsKey(username)) {
+                out.println("LOGIN_FAIL|Tài khoản này đang được đăng nhập ở nơi khác.");
+                System.out.println(username + " đăng nhập thất bại do bị trùng phiên.");
+                return;
+            }
+            
             this.loggedInUsername = username;
             this.currentUser = user; // Lưu lại để dùng cho các luồng khác
             
@@ -130,8 +140,8 @@ public class ClientHandler implements Runnable {
 
     private void handleListPlayers() {
         UserDAO userDAO = new UserDAO();
-        // Lấy danh sách người chơi từ DB (được sắp xếp theo trạng thái và điểm)
-        var lobbyUsers = userDAO.getLobbyUsers(); 
+        // 1. Đổi kiểu dữ liệu thành UserDTO cho khớp với getLobbyUsers()
+        java.util.List<UserDTO> lobbyUsers = userDAO.getLobbyUsers(); 
         
         if (lobbyUsers.isEmpty()) {
             out.println("PLAYER_LIST|");
@@ -140,13 +150,20 @@ public class ClientHandler implements Runnable {
 
         StringBuilder sb = new StringBuilder("PLAYER_LIST|");
         for (int i = 0; i < lobbyUsers.size(); i++) {
-            var u = lobbyUsers.get(i);
+            UserDTO u = lobbyUsers.get(i); // Sử dụng UserDTO
+            
+            String realStatus = u.getStatus();
+            
+            // 2. Dùng u.getNickname() vì UserDTO lưu tên hiển thị ở đây
+            if ("ONLINE".equals(realStatus) && !BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
+                realStatus = "OFFLINE";
+            }
+            
             // Định dạng: nickname,status,score
             sb.append(u.getNickname()).append(",")
-              .append(u.getStatus()).append(",")
+              .append(realStatus).append(",")
               .append(u.getScore());
               
-            // Ngăn cách các user bằng dấu chấm phẩy
             if (i < lobbyUsers.size() - 1) {
                 sb.append(";");
             }
@@ -183,15 +200,23 @@ public class ClientHandler implements Runnable {
             this.currentUser.setStatus("IN_GAME");
             challengerHandler.currentUser.setStatus("IN_GAME");
             
-            // 2. Báo cho người thách đấu (A) biết để chuẩn bị vào trận
-            challengerHandler.sendMessage("ACCEPT_OK|" + this.loggedInUsername);
+            String roomId = "ROOM_" + System.currentTimeMillis();
             
-            // Báo cho chính mình (B) để chuyển giao diện sang màn hình đếm ngược chuẩn bị trận đấu
-            out.println("START_GAME|" + challengerUsername);
+            // 2. Gửi lệnh MATCH_START cho 2 người chơi vào trận
+            // Định dạng: MATCH_START | roomId | doiThu | nguoiDiTruoc
+            challengerHandler.sendMessage("MATCH_START|" + roomId + "|" + this.loggedInUsername + "|" + challengerUsername);
+            out.println("MATCH_START|" + roomId + "|" + challengerUsername + "|" + challengerUsername);
+            
+            // ==========================================================
+            // 3. BROADCAST CẬP NHẬT DANH SÁCH CHO TẤT CẢ CLIENT ĐANG ONLINE
+            // ==========================================================
+            for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
+                client.handleListPlayers();
+            }
             
             System.out.println("Trận đấu bắt đầu giữa: " + challengerUsername + " và " + this.loggedInUsername);
         } else {
-            out.println("ACCEPT_FAIL|Người thách đấu đã thoát hoặc không hợp lệ.");
+            out.println("ERROR|Người thách đấu đã thoát hoặc không hợp lệ.");
         }
     }
 
