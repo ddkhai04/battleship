@@ -1,7 +1,6 @@
 package client.gui;
 
 import javafx.application.Application;
-import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -53,7 +52,7 @@ public class LobbyGUI extends Application {
         SocketClientManager.lobbyScreen = this;
 
         BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color: #1a252f;"); // Màu tối radar
+        root.getStyleClass().add("lobby-root"); // Màu tối radar
         root.setTop(taoThanhTieuDe());
 
         TabPane tabPane = new TabPane();
@@ -61,30 +60,33 @@ public class LobbyGUI extends Application {
         tabPane.getTabs().add(taoTabLichSu());
         tabPane.getTabs().add(taoTabXepHang());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setStyle("-fx-background-color: #2c3e50;");
-        
+        tabPane.getStyleClass().add("custom-tabpane");
+
         BorderPane.setMargin(tabPane, new Insets(10, 20, 20, 20));
         root.setCenter(tabPane);
 
         SocketClientManager.guiTinNhan("LIST_PLAYERS||false");
 
         Scene scene = new Scene(root, 900, 600);
+        // Nạp file CSS riêng vào Scene
+        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
     private HBox taoThanhTieuDe() {
-        Label lblTitle = new Label("BATTLESHIP COMMAND CENTER");
-        lblTitle.setStyle("-fx-text-fill: #ecf0f1; -fx-font-size: 20px; -fx-font-weight: bold; -fx-letter-spacing: 2px;");
+        Label lblTitle = new Label("B A T T L E S H I P   C O M M A N D   C E N T E R");
+        lblTitle.getStyleClass().add("header-title");
 
         lblUser = new Label("Tài khoản: " + currentUsername);
-        lblUser.setStyle("-fx-text-fill: #3498db; -fx-font-size: 14px; -fx-font-weight: bold;");
+        lblUser.getStyleClass().add("header-user");
 
         lblScore = new Label("Điểm: " + currentScore);
-        lblScore.setStyle("-fx-text-fill: #f1c40f; -fx-font-size: 14px; -fx-font-weight: bold;");
+        lblScore.getStyleClass().add("header-score");
 
         Button btnLogout = new Button("ĐĂNG XUẤT");
-        btnLogout.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-cursor: hand; -fx-font-weight: bold;");
+        btnLogout.getStyleClass().add("btn-danger");
         btnLogout.setOnAction(e -> {
             SocketClientManager.guiTinNhan("LOGOUT");
             SocketClientManager.dongKetNoi();
@@ -95,16 +97,16 @@ public class LobbyGUI extends Application {
         HBox box = new HBox(30, lblTitle, lblUser, lblScore, btnLogout);
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(15, 20, 10, 20));
-        box.setStyle("-fx-background-color: #0d131a;");
+        box.getStyleClass().add("header-bar");
         return box;
     }
 
     private Tab taoTabNguoiChoi() {
         txtSearch = new TextField();
         txtSearch.setPromptText("Tìm theo tên...");
-        txtSearch.setStyle("-fx-padding: 8px;");
+        txtSearch.getStyleClass().add("input-field");
         Button btnSearch = new Button("Tìm kiếm");
-        btnSearch.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 8px; -fx-cursor: hand;");
+        btnSearch.getStyleClass().add("btn-secondary");
         btnSearch.setOnAction(e -> SocketClientManager.guiTinNhan("LIST_PLAYERS|" + txtSearch.getText().trim() + "|false"));
 
         HBox toolbar = new HBox(10, txtSearch, btnSearch);
@@ -112,6 +114,7 @@ public class LobbyGUI extends Application {
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         tblPlayers = new TableView<>();
+        tblPlayers.getStyleClass().add("data-table");
         TableColumn<String[], String> colTen = new TableColumn<>("Tên người chơi");
         colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
         colTen.setPrefWidth(250);
@@ -129,7 +132,7 @@ public class LobbyGUI extends Application {
         colThachDau.setCellFactory(col -> new javafx.scene.control.TableCell<String[], Void>() {
             private final Button btn = new Button("Thách đấu");
             {
-                btn.setStyle("-fx-background-color: #e67e22; -fx-text-fill: white; -fx-cursor: hand;");
+                btn.getStyleClass().add("btn-challenge");
                 btn.setOnAction(e -> {
                     String[] row = getTableView().getItems().get(getIndex());
                     String tenDoiThu = row[0];
@@ -157,10 +160,11 @@ public class LobbyGUI extends Application {
 
     private Tab taoTabLichSu() {
         Button btnRefresh = new Button("Làm mới");
-        btnRefresh.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 8px; -fx-cursor: hand;");
+        btnRefresh.getStyleClass().add("btn-secondary");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("MATCH_HISTORY"));
 
         tblHistory = new TableView<>();
+        tblHistory.getStyleClass().add("data-table");
         TableColumn<String[], String> colId = new TableColumn<>("Mã trận");
         colId.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
 
@@ -183,10 +187,11 @@ public class LobbyGUI extends Application {
 
     private Tab taoTabXepHang() {
         Button btnRefresh = new Button("Làm mới");
-        btnRefresh.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-padding: 8px; -fx-cursor: hand;");
+        btnRefresh.getStyleClass().add("btn-secondary");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("LEADERBOARD"));
 
         tblRank = new TableView<>();
+        tblRank.getStyleClass().add("data-table");
         TableColumn<String[], String> colHang = new TableColumn<>("Hạng");
         colHang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
 
