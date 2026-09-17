@@ -51,6 +51,12 @@ public class ClientHandler implements Runnable {
                     case "INVITE":
                         if (parts.length >= 2) handleInvite(parts[1]);
                         break;
+                    case "ACCEPT":
+                        if (parts.length >= 2) handleAccept(parts[1]);
+                        break;
+                    case "REJECT":
+                        if (parts.length >= 2) handleReject(parts[1]);
+                        break;
                     default:
                         System.out.println("Lệnh không xác định: " + command);
                 }
@@ -77,10 +83,10 @@ public class ClientHandler implements Runnable {
     private void handleLogin(String username, String password) {
         UserDAO userDAO = new UserDAO();
         
-        // Gọi hàm của Thành viên 1 để lấy thông tin tài khoản từ DB
+        // Gọi hàm để lấy thông tin tài khoản từ DB
         User user = userDAO.checkLogin(username);
         
-        // Tự thực hiện kiểm tra mật khẩu bằng Java
+        // Kiểm tra mật khẩu bằng Java
         if (user != null && user.getPassword().equals(password)) {
             this.loggedInUsername = username;
             this.currentUser = user; // Lưu lại để dùng cho các luồng khác
@@ -124,7 +130,7 @@ public class ClientHandler implements Runnable {
 
     private void handleListPlayers() {
         UserDAO userDAO = new UserDAO();
-        // Lấy danh sách người chơi từ DB (Thành viên 1 đã viết sẵn hàm sắp xếp theo trạng thái và điểm)
+        // Lấy danh sách người chơi từ DB (được sắp xếp theo trạng thái và điểm)
         var lobbyUsers = userDAO.getLobbyUsers(); 
         
         if (lobbyUsers.isEmpty()) {
@@ -158,8 +164,43 @@ public class ClientHandler implements Runnable {
             targetHandler.sendMessage("INVITE_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " đã gửi lời mời tới " + targetUser);
         } else {
-            // Trả lỗi về cho người mời nếu đối phương vừa thoát
+            // Trả lỗi về cho người mời nếu đối phương không online
             out.println("INVITE_FAIL|Người chơi " + targetUser + " không online.");
+        }
+    }
+
+    private void handleAccept(String challengerUsername) {
+        ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
+        
+        if (challengerHandler != null && challengerHandler.currentUser != null && this.currentUser != null) {
+            UserDAO userDAO = new UserDAO();
+            
+            // 1. Cập nhật trạng thái xuống CSDL thành IN_GAME cho cả 2 người
+            userDAO.updateStatus(this.currentUser.getId(), "IN_GAME");
+            userDAO.updateStatus(challengerHandler.currentUser.getId(), "IN_GAME");
+            
+            // Cập nhật trạng thái trong bộ nhớ RAM của luồng
+            this.currentUser.setStatus("IN_GAME");
+            challengerHandler.currentUser.setStatus("IN_GAME");
+            
+            // 2. Báo cho người thách đấu (A) biết để chuẩn bị vào trận
+            challengerHandler.sendMessage("ACCEPT_OK|" + this.loggedInUsername);
+            
+            // Báo cho chính mình (B) để chuyển giao diện sang màn hình đếm ngược chuẩn bị trận đấu
+            out.println("START_GAME|" + challengerUsername);
+            
+            System.out.println("Trận đấu bắt đầu giữa: " + challengerUsername + " và " + this.loggedInUsername);
+        } else {
+            out.println("ACCEPT_FAIL|Người thách đấu đã thoát hoặc không hợp lệ.");
+        }
+    }
+
+    private void handleReject(String challengerUsername) {
+        ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
+        
+        if (challengerHandler != null) {
+            challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
+            System.out.println(this.loggedInUsername + " đã từ chối lời mời của " + challengerUsername);
         }
     }
     
