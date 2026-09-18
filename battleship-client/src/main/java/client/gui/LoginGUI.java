@@ -11,7 +11,8 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-
+import javafx.animation.FadeTransition;
+import javafx.util.Duration;
 /**
  * @author DINH THE LINH
  */
@@ -88,11 +89,14 @@ public class LoginGUI extends Application {
         // Khung nền Radar
         VBox root = new VBox();
         root.setAlignment(Pos.CENTER);
+        root.getStyleClass().add("auth-root");
         root.getChildren().add(formCard);
 
         Scene scene = new Scene(root, 800, 600);
         // Nạp file CSS riêng vào Scene
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
+       
 
         primaryStage.setScene(scene);
         primaryStage.setResizable(false);
@@ -155,6 +159,13 @@ public class LoginGUI extends Application {
         lblThongBao.getStyleClass().add("message-error");
         lblThongBao.setText(lyDo);
         txtPassword.clear();
+    }
+    // Hàm này được gọi từ form RegisterGUI sau khi đăng ký thành công
+    public void hienThiThongBaoXanh(String thongBao) {
+        lblThongBao.getStyleClass().removeAll("message-error", "message-info");
+        // Bơm thẳng màu xanh lá cây vào thông báo
+        lblThongBao.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold;");
+        lblThongBao.setText(thongBao);
     }
 
     public static void main(String[] args) {

@@ -11,7 +11,8 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-
+import javafx.animation.FadeTransition;
+import javafx.util.Duration;
 /**
  * @author DINH THE LINH
  */
@@ -31,9 +32,6 @@ public class RegisterGUI extends Application {
 
         SocketClientManager.registerScreen = this;
 
-        // 1. Tựa đề (Chữ to hơn cho cân xứng form lớn)
-        // Luu y: JavaFX CSS khong ho tro letter-spacing, nen minh gia lap
-        // hieu ung "tracking rong" bang cach chen khoang trang thu cong.
         Label lblTitle = new Label("TẠO TÀI KHOẢN MỚI");
         lblTitle.getStyleClass().add("title-label");
 
@@ -41,11 +39,13 @@ public class RegisterGUI extends Application {
         titleBox.setAlignment(Pos.CENTER);
         titleBox.setPadding(new Insets(0, 0, 15, 0));
 
-        // 2. Ô nhập liệu (Đã mở rộng thành 350)
         txtUsername = new TextField();
         txtUsername.setPromptText("Tên đăng nhập (3-20 ký tự)...");
         txtUsername.setMaxWidth(350);
         txtUsername.getStyleClass().add("input-field");
+        
+        // Mẹo UX: Tự động xóa viền đỏ khi người dùng bắt đầu gõ sửa lại chữ
+        txtUsername.setOnKeyTyped(e -> txtUsername.setStyle(""));
 
         txtPassword = new PasswordField();
         txtPassword.setPromptText("Mật khẩu...");
@@ -62,7 +62,6 @@ public class RegisterGUI extends Application {
         lblThongBao.setWrapText(true);
         lblThongBao.setMaxWidth(350);
 
-        // 3. Nút bấm (Đã mở rộng thành 350)
         btnRegister = new Button("ĐĂNG KÝ");
         btnRegister.setPrefWidth(350);
         btnRegister.getStyleClass().add("btn-primary");
@@ -75,7 +74,6 @@ public class RegisterGUI extends Application {
             loginGUI.start(primaryStage);
         });
 
-        // 4. Layout Card (Đã mở rộng thành 450)
         VBox formCard = new VBox(18);
         formCard.setAlignment(Pos.CENTER);
         formCard.setPadding(new Insets(35, 45, 35, 45));
@@ -84,16 +82,14 @@ public class RegisterGUI extends Application {
 
         formCard.getChildren().addAll(titleBox, txtUsername, txtPassword, txtConfirm, lblThongBao, btnRegister, btnBack);
 
-        // Khung nền Radar
         VBox root = new VBox();
         root.setAlignment(Pos.CENTER);
+        root.getStyleClass().add("auth-root");
         root.getChildren().add(formCard);
 
-        // Phóng to toàn màn hình hiển thị thành 800x650
         Scene scene = new Scene(root, 800, 650);
-        // Nạp file CSS riêng vào Scene
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-
+        
         primaryStage.setScene(scene);
         primaryStage.show();
     }
@@ -103,12 +99,27 @@ public class RegisterGUI extends Application {
         String pass = txtPassword.getText().trim();
         String confirm = txtConfirm.getText().trim();
 
+        // Xóa viền đỏ cũ mỗi lần bấm nút (nếu có)
+        txtUsername.setStyle("");
+
         if (user.isEmpty() || pass.isEmpty() || confirm.isEmpty()) {
             lblThongBao.getStyleClass().removeAll("message-info", "message-error");
             lblThongBao.getStyleClass().add("message-error");
             lblThongBao.setText("Vui lòng nhập đầy đủ thông tin!");
             return;
         }
+
+        // KIỂM TRA ĐỘ DÀI KÝ TỰ (3-20)
+        if (user.length() < 3 || user.length() > 20) {
+            lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+            lblThongBao.getStyleClass().add("message-error");
+            lblThongBao.setText("Tên đăng nhập phải từ 3 đến 20 ký tự!");
+            
+            // Đổi viền ô username thành màu đỏ và giữ nguyên text người dùng đã nhập
+            txtUsername.setStyle("-fx-border-color: #e63946; -fx-border-width: 2; -fx-border-radius: 8;");
+            return;
+        }
+
         if (!pass.equals(confirm)) {
             lblThongBao.getStyleClass().removeAll("message-info", "message-error");
             lblThongBao.getStyleClass().add("message-error");
@@ -139,15 +150,23 @@ public class RegisterGUI extends Application {
     }
 
     public void dangKyThanhCong() {
-        System.out.println("Đăng ký thành công, quay về màn hình đăng nhập.");
-        LoginGUI loginGUI = new LoginGUI();
-        loginGUI.start(primaryStage);
+        // Đã đổi giao diện thì bắt buộc phải bọc trong Platform.runLater()
+        Platform.runLater(() -> {
+            LoginGUI loginGUI = new LoginGUI();
+            loginGUI.start(primaryStage);
+            
+            // Gọi hàm hiện chữ xanh lá cây ở màn hình Đăng nhập
+            loginGUI.hienThiThongBaoXanh("Bạn đã đăng ký tài khoản thành công!");
+        });
     }
 
     public void dangKyThatBai(String lyDo) {
-        btnRegister.setDisable(false);
-        lblThongBao.getStyleClass().removeAll("message-info", "message-error");
-        lblThongBao.getStyleClass().add("message-error");
-        lblThongBao.setText(lyDo);
+        // Nếu server báo lỗi (ví dụ: Trùng tên), phải bọc Platform.runLater
+        Platform.runLater(() -> {
+            btnRegister.setDisable(false);
+            lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+            lblThongBao.getStyleClass().add("message-error");
+            lblThongBao.setText(lyDo);
+        });
     }
 }

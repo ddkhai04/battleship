@@ -13,7 +13,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <javafx.version>21.0.1</javafx.version>
-        <exec.mainClass>client.gui.LoginGUI</exec.mainClass>
+        <exec.mainClass>client.gui.SplashGUI</exec.mainClass>
     </properties>
 
     <dependencies>
@@ -37,8 +37,15 @@
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+        
+        <!-- Thư viện JavaFX Media (Âm thanh, Nhạc nền) -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
     </dependencies>
-
+        
     <build>
         <plugins>
             <!-- Plugin hỗ trợ chạy trực tiếp JavaFX trên Maven -->

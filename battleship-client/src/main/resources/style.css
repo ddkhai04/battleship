@@ -21,11 +21,16 @@
 /* ------------------------------------------------------------------
    1. NEN TONG THE (Login/Register) - bau troi xanh nhat, se de anh nen len tren
    ------------------------------------------------------------------ */
-.root {
-    -fx-font-family: "Segoe UI", Arial, sans-serif;
-    -fx-background-color: linear-gradient(to bottom, #eaf6fb, #bfe3f2 60%, #8fd0e8);
-}
+    .root {
+        -fx-font-family: "Segoe UI", Arial, sans-serif;
+    }
 
+    .auth-root {
+    -fx-background-image: url('bg1.gif');
+    -fx-background-size: 100% 100%;
+    -fx-background-position: center center;
+    -fx-background-repeat: no-repeat;
+    }
 /* ------------------------------------------------------------------
    2. THE FORM (VBox chua o nhap) - hieu ung KINH MO (Frosted Glass)
    De form noi ro tren nen anh (troi/bien/tau cuop bien) ma khong bi

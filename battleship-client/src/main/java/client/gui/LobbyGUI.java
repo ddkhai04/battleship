@@ -76,7 +76,7 @@ public class LobbyGUI extends Application {
     }
 
     private HBox taoThanhTieuDe() {
-        Label lblTitle = new Label("B A T T L E S H I P   C O M M A N D   C E N T E R");
+        Label lblTitle = new Label("BATTLE SHIP COMMAND CENTER");
         lblTitle.getStyleClass().add("header-title");
 
         lblUser = new Label("Tài khoản: " + currentUsername);
