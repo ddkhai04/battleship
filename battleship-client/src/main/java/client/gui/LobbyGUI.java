@@ -9,7 +9,9 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -44,6 +46,12 @@ public class LobbyGUI extends Application {
     private TableView<String[]> tblRank;
     private ObservableList<String[]> dsXepHang = FXCollections.observableArrayList();
 
+    // Các biến quản lý hộp thoại và chống spam
+    private Alert alertChoXacNhan;
+    private Alert alertNhanLoiMoi;
+    private boolean isWaiting = false;
+    private boolean biHuyBo = false; // Cờ kiểm tra xem hộp thoại bị đóng do đối thủ hủy hay do mình bấm
+
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -52,7 +60,7 @@ public class LobbyGUI extends Application {
         SocketClientManager.lobbyScreen = this;
 
         BorderPane root = new BorderPane();
-        root.getStyleClass().add("lobby-root"); // Màu tối radar
+        root.getStyleClass().add("lobby-root"); 
         root.setTop(taoThanhTieuDe());
 
         TabPane tabPane = new TabPane();
@@ -68,7 +76,6 @@ public class LobbyGUI extends Application {
         SocketClientManager.guiTinNhan("LIST_PLAYERS||false");
 
         Scene scene = new Scene(root, 900, 600);
-        // Nạp file CSS riêng vào Scene
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
 
         primaryStage.setScene(scene);
@@ -134,11 +141,22 @@ public class LobbyGUI extends Application {
             {
                 btn.getStyleClass().add("btn-challenge");
                 btn.setOnAction(e -> {
+                    // Chống spam: Đang đợi người khác thì không cho bấm
+                    if (isWaiting) {
+                        Alert canhkBao = new Alert(AlertType.WARNING, "Bạn đang đợi một người khác trả lời. Hãy Hủy yêu cầu cũ trước!");
+                        DialogPane dp = canhkBao.getDialogPane();
+                        dp.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+                        dp.getStyleClass().add("lobby-root");
+                        canhkBao.show();
+                        return;
+                    }
+                    
                     String[] row = getTableView().getItems().get(getIndex());
                     String tenDoiThu = row[0];
                     String trangThai = row[1];
                     if (tenDoiThu.equalsIgnoreCase(currentUsername) || !trangThai.equals("ONLINE")) return;
-                    SocketClientManager.guiTinNhan("INVITE|" + tenDoiThu);
+                    
+                    hienThiHopThoaiCho(tenDoiThu);
                 });
             }
             @Override
@@ -248,17 +266,58 @@ public class LobbyGUI extends Application {
         }
     }
 
+    // 1. Hàm hiện bảng Đang Chờ (Người gửi có nút Hủy)
+    public void hienThiHopThoaiCho(String tenDoiThu) {
+        isWaiting = true; 
+        alertChoXacNhan = new Alert(AlertType.CONFIRMATION);
+        alertChoXacNhan.setTitle("Đang chờ phản hồi...");
+        alertChoXacNhan.setHeaderText("Đã gửi chiến thư đến [" + tenDoiThu + "]");
+        alertChoXacNhan.setContentText("Vui lòng đợi thuyền trưởng đối phương xác nhận...");
+        
+        ButtonType btnHuy = new ButtonType("Hủy yêu cầu", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alertChoXacNhan.getButtonTypes().setAll(btnHuy);
+
+        DialogPane dialogPane = alertChoXacNhan.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        dialogPane.getStyleClass().add("lobby-root");
+
+        SocketClientManager.guiTinNhan("INVITE|" + tenDoiThu);
+
+        Optional<ButtonType> result = alertChoXacNhan.showAndWait();
+        if (result.isPresent() && result.get() == btnHuy) {
+            SocketClientManager.guiTinNhan("CANCEL_INVITE|" + tenDoiThu);
+            isWaiting = false;
+        }
+    }
+
+    // 2. Hàm khi có người thách đấu mình 
     public void nhanLoiThachDau(String nguoiMoi) {
-        Alert alert = new Alert(AlertType.CONFIRMATION);
-        alert.setTitle("Lời thách đấu");
-        alert.setHeaderText(nguoiMoi + " muốn thách đấu với bạn!");
-        alert.setContentText("Bạn có đồng ý vào trận không?");
+        if (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing()) {
+            SocketClientManager.guiTinNhan("INVITE_REJECT|" + nguoiMoi);
+            return; 
+        }
 
-        ButtonType btnDongY = new ButtonType("Đồng ý");
-        ButtonType btnTuChoi = new ButtonType("Từ chối");
-        alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
+        biHuyBo = false; // Reset cờ mỗi lần có lời mời mới
+        alertNhanLoiMoi = new Alert(AlertType.CONFIRMATION);
+        alertNhanLoiMoi.setTitle("Tín hiệu chiến đấu!");
+        alertNhanLoiMoi.setHeaderText(nguoiMoi + " đang muốn khai hỏa với bạn!");
+        alertNhanLoiMoi.setContentText("Bạn có sẵn sàng tham chiến không?");
 
-        Optional<ButtonType> ketQua = alert.showAndWait();
+        ButtonType btnDongY = new ButtonType("Vào trận", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnTuChoi = new ButtonType("Từ chối", ButtonBar.ButtonData.CANCEL_CLOSE);
+        alertNhanLoiMoi.getButtonTypes().setAll(btnDongY, btnTuChoi);
+
+        DialogPane dialogPane = alertNhanLoiMoi.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        dialogPane.getStyleClass().add("lobby-root");
+
+        Optional<ButtonType> ketQua = alertNhanLoiMoi.showAndWait();
+        
+        // CỰC KỲ QUAN TRỌNG: Nếu hộp thoại bị ép đóng do đối thủ hủy, thì KHÔNG gửi lệnh TỪ CHỐI nữa
+        if (biHuyBo) {
+            return; 
+        }
+
         if (ketQua.isPresent() && ketQua.get() == btnDongY) {
             SocketClientManager.guiTinNhan("INVITE_ACCEPT|" + nguoiMoi);
         } else {
@@ -266,23 +325,62 @@ public class LobbyGUI extends Application {
         }
     }
 
+    // 3. Hàm báo bị từ chối
     public void loiMoiBiTuChoi(String nguoiTuChoi) {
-        Alert alert = new Alert(AlertType.INFORMATION);
-        alert.setTitle("Thông báo");
-        alert.setHeaderText(null);
-        alert.setContentText(nguoiTuChoi + " đã từ chối lời thách đấu của bạn.");
+        if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) {
+            alertChoXacNhan.close(); 
+        }
+        isWaiting = false; 
+
+        Alert alert = new Alert(AlertType.WARNING);
+        alert.setTitle("Từ chối");
+        alert.setHeaderText("Mục tiêu đã rút lui!");
+        alert.setContentText(nguoiTuChoi + " không muốn giao chiến lúc này.");
+        
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        dialogPane.getStyleClass().add("lobby-root");
+
         alert.showAndWait();
     }
 
+    // 4. Hàm đối phương hủy lời mời khi mình đang xem
+    public void doiThuHuyLoiMoi(String nguoiHuy) {
+        if (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing()) {
+            biHuyBo = true; // Bật cờ báo hiệu là "Tao bị ép đóng chứ không phải tao bấm Từ chối"
+            alertNhanLoiMoi.close(); 
+            
+            Alert alert = new Alert(AlertType.INFORMATION);
+            alert.setTitle("Hủy yêu cầu");
+            alert.setHeaderText(null);
+            alert.setContentText(nguoiHuy + " đã mất kiên nhẫn và hủy lời mời!");
+            
+            DialogPane dialogPane = alert.getDialogPane();
+            dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+            dialogPane.getStyleClass().add("lobby-root");
+            
+            alert.show();
+        }
+    }
+
+    // 5. Hàm đồng ý và bắt đầu vào trận
     public void batDauTranDau(String[] parts) {
+        if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) alertChoXacNhan.close();
+        if (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing()) alertNhanLoiMoi.close();
+        isWaiting = false;
+
         String roomId = parts.length > 1 ? parts[1] : "";
         String doiThu = parts.length > 2 ? parts[2] : "";
-        String nguoiDiTruoc = parts.length > 3 ? parts[3] : "";
 
         Alert alert = new Alert(AlertType.INFORMATION);
         alert.setTitle("Vào trận");
-        alert.setHeaderText(null);
-        alert.setContentText("Đã vào phòng " + roomId + ", đối thủ: " + doiThu + ". (Chờ Thành viên 5 ráp GameRoomGUI vào đây)");
+        alert.setHeaderText("Còi báo động rền vang!");
+        alert.setContentText("Đã vào phòng " + roomId + ", đối thủ của bạn là: " + doiThu + ".");
+        
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        dialogPane.getStyleClass().add("lobby-root");
+
         alert.showAndWait();
     }
 }
