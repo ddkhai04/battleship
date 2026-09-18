@@ -30,7 +30,7 @@ public class SocketClientManager {
 
     // Sửa lại IP/PORT cho đúng với máy chạy Server thật khi demo
     public static final String SERVER_IP = "127.0.0.1";
-    public static final int SERVER_PORT = 5000;
+    public static final int SERVER_PORT = 2209;
 
     private static Socket socket;
     private static BufferedReader in;

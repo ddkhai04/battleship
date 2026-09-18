@@ -9,25 +9,28 @@ package com.mycompany.battleship.common.model;
  * @author dkhai
  */
 
+
+
 import java.io.Serializable;
 import java.sql.Timestamp;
-public class MatchHistoryItem implements Serializable{
+
+public class MatchHistoryDTO implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private int matchId;
-    private String opponentName;
-    private String result;
+    private String opponentNickname;
+    private String result; // "Thắng" hoặc "Thua"
     private Timestamp playedAt;
 
-    public MatchHistoryItem() {
+    public MatchHistoryDTO() {
     }
 
-    public MatchHistoryItem(int matchId, String opponentName, String result, Timestamp playedAt) {
+    public MatchHistoryDTO(int matchId, String opponentNickname, String result, Timestamp playedAt) {
         this.matchId = matchId;
-        this.opponentName = opponentName;
+        this.opponentNickname = opponentNickname;
         this.result = result;
         this.playedAt = playedAt;
     }
-
-
 
     public int getMatchId() {
         return matchId;
@@ -37,12 +40,12 @@ public class MatchHistoryItem implements Serializable{
         this.matchId = matchId;
     }
 
-    public String getOpponentName() {
-        return opponentName;
+    public String getOpponentNickname() {
+        return opponentNickname;
     }
 
-    public void setOpponentName(String opponentName) {
-        this.opponentName = opponentName;
+    public void setOpponentNickname(String opponentNickname) {
+        this.opponentNickname = opponentNickname;
     }
 
     public String getResult() {
@@ -60,6 +63,5 @@ public class MatchHistoryItem implements Serializable{
     public void setPlayedAt(Timestamp playedAt) {
         this.playedAt = playedAt;
     }
-    
-    
 }
+
