@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
-import org.mindrot.jbcrypt.BCrypt; // Import thư viện BCrypt
+import org.mindrot.jbcrypt.BCrypt;
 
 public class ClientHandler implements Runnable {
     
@@ -17,8 +17,10 @@ public class ClientHandler implements Runnable {
     private PrintWriter out;
     private String loggedInUsername = null;
     private User currentUser = null;
+    
+    // Lưu lại tham chiếu đến luồng của đối thủ khi vào trận
+    private ClientHandler opponent = null; 
 
-    // Constructor nhận kết nối từ BattleshipServer truyền sang
     public ClientHandler(Socket socket) {
         this.socket = socket;
     }
@@ -32,13 +34,11 @@ public class ClientHandler implements Runnable {
             System.out.println("Đã sẵn sàng giao tiếp với một Client mới!");
             
             String request;
-            // Vòng lặp liên tục đọc dòng chữ từ Client gửi lên
             while ((request = in.readLine()) != null) {
                 System.out.println("Nhận được lệnh: " + request);
                 
-                // Tách chuỗi theo định dạng hợp đồng (ngăn cách bởi dấu |)
                 String[] parts = request.split("\\|");
-                String command = parts[0]; // Từ khóa đầu tiên luôn là Tên lệnh
+                String command = parts[0];
 
                 switch (command) {
                     case "LOGIN":
@@ -58,6 +58,7 @@ public class ClientHandler implements Runnable {
                         if (parts.length >= 2) handleAccept(parts[1]);
                         break;
                     case "REJECT":
+                    case "INVITE_REJECT":    
                         if (parts.length >= 2) handleReject(parts[1]);
                         break;
                     default:
@@ -67,18 +68,34 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             System.out.println("Client đột ngột ngắt kết nối: " + e.getMessage());
         } finally {
-            // Xử lý dọn dẹp khi Client tắt cửa sổ game hoặc rớt mạng
             if (loggedInUsername != null) {
                 BattleshipServer.onlineUsers.remove(loggedInUsername);
                 
-                // Gọi DAO cập nhật trạng thái về OFFLINE
                 if (currentUser != null) {
                     new UserDAO().updateStatus(currentUser.getId(), "OFFLINE");
                 }
                 
+                // GIẢI CỨU ĐỐI THỦ: Xử lý nếu người này đang trong trận mà thoát ngang
+                if (this.opponent != null) {
+                    System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
+                    
+                    // Gửi lệnh báo cho Client kia biết để đóng bàn cờ
+                    this.opponent.sendMessage("OPPONENT_QUIT|Đối thủ đã mất kết nối. Trận đấu bị hủy.");
+                    
+                    // Kéo người ở lại về trạng thái ONLINE
+                    if (this.opponent.currentUser != null) {
+                        new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
+                        this.opponent.currentUser.setStatus("ONLINE");
+                    }
+                    
+                    // Xóa liên kết
+                    this.opponent.opponent = null;
+                    this.opponent = null;
+                }
+                
                 System.out.println(loggedInUsername + " đã thoát. Còn lại " + BattleshipServer.onlineUsers.size() + " người online.");
                 
-                // BROADCAST: Cập nhật ngay lập tức trạng thái OFFLINE ra toàn bộ sảnh chờ
+                // BROADCAST: Cập nhật ngay lập tức ra toàn bộ sảnh chờ
                 for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                     client.handleListPlayers();
                 }
@@ -86,18 +103,11 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // --- CÁC HÀM XỬ LÝ CHUỖI LOGIC ---
-
     private void handleLogin(String username, String password) {
         UserDAO userDAO = new UserDAO();
-        
-        // Gọi hàm để lấy thông tin tài khoản từ DB
         User user = userDAO.checkLogin(username);
         
-        // SỬ DỤNG BCRYPT ĐỂ KIỂM TRA MẬT KHẨU
         if (user != null && BCrypt.checkpw(password, user.getPassword())) {
-            
-            // --- KIỂM TRA CHỐNG TRÙNG TÀI KHOẢN ---
             if (BattleshipServer.onlineUsers.containsKey(username)) {
                 out.println("LOGIN_FAIL|Tài khoản này đang được đăng nhập ở nơi khác.");
                 System.out.println(username + " đăng nhập thất bại do bị trùng phiên.");
@@ -105,19 +115,16 @@ public class ClientHandler implements Runnable {
             }
             
             this.loggedInUsername = username;
-            this.currentUser = user; // Lưu lại để dùng cho các luồng khác
+            this.currentUser = user;
             
             BattleshipServer.onlineUsers.put(username, this);
             
-            // Đổi trạng thái trong CSDL thành ONLINE
             userDAO.updateStatus(user.getId(), "ONLINE");
             this.currentUser.setStatus("ONLINE");
             
-            // Trả về lệnh kèm Điểm số thật từ Database
             out.println("LOGIN_OK|" + username + "|" + user.getScore());
             System.out.println(username + " đã đăng nhập thành công!");
             
-            // BROADCAST: Cập nhật ngay lập tức trạng thái ONLINE ra toàn bộ sảnh chờ
             for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                 client.handleListPlayers();
             }
@@ -130,22 +137,18 @@ public class ClientHandler implements Runnable {
     private void handleRegister(String username, String password) {
         UserDAO userDAO = new UserDAO();
         
-        // Kiểm tra xem tên tài khoản đã bị người khác đăng ký chưa
         if (userDAO.checkUsernameExist(username)) {
             out.println("REGISTER_FAIL|Tài khoản đã tồn tại");
             return;
         }
         
-        // MÃ HÓA MẬT KHẨU BẰNG BCRYPT TRƯỚC KHI LƯU (Độ phức tạp = 12)
         String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt(12));
         
-        // Tạo đối tượng User mới
         User newUser = new User();
         newUser.setUsername(username);
-        newUser.setPassword(hashedPassword); // Lưu chuỗi đã mã hóa
+        newUser.setPassword(hashedPassword);
         newUser.setNickname(username);
         
-        // Gọi hàm Insert xuống DB
         if (userDAO.registerUser(newUser)) {
             out.println("REGISTER_OK");
             System.out.println("Đăng ký thành công tài khoản: " + username);
@@ -169,12 +172,11 @@ public class ClientHandler implements Runnable {
             
             String realStatus = u.getStatus();
             
-            // Lọc lỗi "Online ma" từ Database nếu user không có thực trên RAM Server
-            if ("ONLINE".equals(realStatus) && !BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
+            // Lọc toàn bộ lỗi "ma"
+            if (!BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
                 realStatus = "OFFLINE";
             }
             
-            // Định dạng: nickname,status,score
             sb.append(u.getNickname()).append(",")
               .append(realStatus).append(",")
               .append(u.getScore());
@@ -188,9 +190,19 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleInvite(String targetUser) {
+        if ("IN_GAME".equals(this.currentUser.getStatus())) {
+            out.println("INVITE_FAIL|Bạn đang trong trận đấu, không thể thách đấu thêm.");
+            return;
+        }
+
         ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
         
-        if (targetHandler != null) {
+        if (targetHandler != null && targetHandler.currentUser != null) {
+            if ("IN_GAME".equals(targetHandler.currentUser.getStatus())) {
+                out.println("INVITE_FAIL|Người chơi " + targetUser + " đang bận trong trận đấu khác.");
+                return;
+            }
+            
             targetHandler.sendMessage("INVITE_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " đã gửi lời mời tới " + targetUser);
         } else {
@@ -199,26 +211,37 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleAccept(String challengerUsername) {
+        if ("IN_GAME".equals(this.currentUser.getStatus())) {
+            out.println("ERROR|Bạn đang trong trận đấu khác, không thể vào trận này.");
+            return;
+        }
+
         ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
         
         if (challengerHandler != null && challengerHandler.currentUser != null && this.currentUser != null) {
+            
+            if ("IN_GAME".equals(challengerHandler.currentUser.getStatus())) {
+                out.println("ERROR|Người thách đấu đã tham gia trận đấu khác.");
+                return;
+            }
+            
             UserDAO userDAO = new UserDAO();
             
-            // 1. Cập nhật trạng thái xuống CSDL thành IN_GAME cho cả 2 người
             userDAO.updateStatus(this.currentUser.getId(), "IN_GAME");
             userDAO.updateStatus(challengerHandler.currentUser.getId(), "IN_GAME");
             
-            // Cập nhật trạng thái trong bộ nhớ RAM của luồng
             this.currentUser.setStatus("IN_GAME");
             challengerHandler.currentUser.setStatus("IN_GAME");
             
+            this.opponent = challengerHandler;
+            challengerHandler.opponent = this;
+            
             String roomId = "ROOM_" + System.currentTimeMillis();
             
-            // 2. Gửi lệnh MATCH_START cho 2 người chơi vào trận
-            challengerHandler.sendMessage("MATCH_START|" + roomId + "|" + this.loggedInUsername + "|" + challengerUsername);
-            out.println("MATCH_START|" + roomId + "|" + challengerUsername + "|" + challengerUsername);
+            // [ĐÃ FIX]: Tách riêng lệnh gửi cho từng người để hiển thị đúng tên đối thủ chéo nhau
+            challengerHandler.sendMessage("MATCH_START|" + roomId + "|" + this.loggedInUsername);
+            out.println("MATCH_START|" + roomId + "|" + challengerUsername);
             
-            // 3. BROADCAST: Cập nhật trạng thái IN_GAME ra toàn sảnh chờ ngay lập tức
             for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                 client.handleListPlayers();
             }
@@ -233,12 +256,12 @@ public class ClientHandler implements Runnable {
         ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
         
         if (challengerHandler != null) {
+            // Lệnh này đã bắn đúng về phía Client của người mời
             challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " đã từ chối lời mời của " + challengerUsername);
         }
     }
     
-    // Hàm phụ trợ để Server chủ động gửi tin nhắn xuống Client
     public void sendMessage(String message) {
         if (out != null) {
             out.println(message);
