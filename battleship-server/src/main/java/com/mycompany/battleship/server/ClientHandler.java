@@ -76,6 +76,11 @@ public class ClientHandler implements Runnable {
                 }
                 
                 System.out.println(loggedInUsername + " đã thoát. Còn lại " + BattleshipServer.onlineUsers.size() + " người online.");
+                
+                // BROADCAST: Cập nhật ngay lập tức trạng thái OFFLINE ra toàn bộ sảnh chờ
+                for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
+                    client.handleListPlayers();
+                }
             }
         }
     }
@@ -105,10 +110,17 @@ public class ClientHandler implements Runnable {
             
             // Đổi trạng thái trong CSDL thành ONLINE
             userDAO.updateStatus(user.getId(), "ONLINE");
+            this.currentUser.setStatus("ONLINE");
             
             // Trả về lệnh kèm Điểm số thật từ Database
             out.println("LOGIN_OK|" + username + "|" + user.getScore());
             System.out.println(username + " đã đăng nhập thành công!");
+            
+            // BROADCAST: Cập nhật ngay lập tức trạng thái ONLINE ra toàn bộ sảnh chờ
+            for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
+                client.handleListPlayers();
+            }
+            
         } else {
             out.println("LOGIN_FAIL|Sai tài khoản hoặc mật khẩu");
         }
@@ -140,7 +152,6 @@ public class ClientHandler implements Runnable {
 
     private void handleListPlayers() {
         UserDAO userDAO = new UserDAO();
-        // 1. Đổi kiểu dữ liệu thành UserDTO cho khớp với getLobbyUsers()
         java.util.List<UserDTO> lobbyUsers = userDAO.getLobbyUsers(); 
         
         if (lobbyUsers.isEmpty()) {
@@ -150,11 +161,11 @@ public class ClientHandler implements Runnable {
 
         StringBuilder sb = new StringBuilder("PLAYER_LIST|");
         for (int i = 0; i < lobbyUsers.size(); i++) {
-            UserDTO u = lobbyUsers.get(i); // Sử dụng UserDTO
+            UserDTO u = lobbyUsers.get(i);
             
             String realStatus = u.getStatus();
             
-            // 2. Dùng u.getNickname() vì UserDTO lưu tên hiển thị ở đây
+            // Lọc lỗi "Online ma" từ Database nếu user không có thực trên RAM Server
             if ("ONLINE".equals(realStatus) && !BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
                 realStatus = "OFFLINE";
             }
@@ -173,15 +184,12 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleInvite(String targetUser) {
-        // Tìm luồng Socket của đối phương trong Map onlineUsers
         ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
         
         if (targetHandler != null) {
-            // Đẩy lệnh INVITE_FROM thẳng sang màn hình của người bị mời
             targetHandler.sendMessage("INVITE_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " đã gửi lời mời tới " + targetUser);
         } else {
-            // Trả lỗi về cho người mời nếu đối phương không online
             out.println("INVITE_FAIL|Người chơi " + targetUser + " không online.");
         }
     }
@@ -203,13 +211,10 @@ public class ClientHandler implements Runnable {
             String roomId = "ROOM_" + System.currentTimeMillis();
             
             // 2. Gửi lệnh MATCH_START cho 2 người chơi vào trận
-            // Định dạng: MATCH_START | roomId | doiThu | nguoiDiTruoc
             challengerHandler.sendMessage("MATCH_START|" + roomId + "|" + this.loggedInUsername + "|" + challengerUsername);
             out.println("MATCH_START|" + roomId + "|" + challengerUsername + "|" + challengerUsername);
             
-            // ==========================================================
-            // 3. BROADCAST CẬP NHẬT DANH SÁCH CHO TẤT CẢ CLIENT ĐANG ONLINE
-            // ==========================================================
+            // 3. BROADCAST: Cập nhật trạng thái IN_GAME ra toàn sảnh chờ ngay lập tức
             for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                 client.handleListPlayers();
             }
