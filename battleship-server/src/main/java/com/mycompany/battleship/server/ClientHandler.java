@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import org.mindrot.jbcrypt.BCrypt; // Import thư viện BCrypt
 
 public class ClientHandler implements Runnable {
     
@@ -93,8 +94,8 @@ public class ClientHandler implements Runnable {
         // Gọi hàm để lấy thông tin tài khoản từ DB
         User user = userDAO.checkLogin(username);
         
-        // Kiểm tra mật khẩu bằng Java
-        if (user != null && user.getPassword().equals(password)) {
+        // SỬ DỤNG BCRYPT ĐỂ KIỂM TRA MẬT KHẨU
+        if (user != null && BCrypt.checkpw(password, user.getPassword())) {
             
             // --- KIỂM TRA CHỐNG TRÙNG TÀI KHOẢN ---
             if (BattleshipServer.onlineUsers.containsKey(username)) {
@@ -135,10 +136,13 @@ public class ClientHandler implements Runnable {
             return;
         }
         
-        // Tạo đối tượng User mới. Tạm thời dùng chính username làm nickname
+        // MÃ HÓA MẬT KHẨU BẰNG BCRYPT TRƯỚC KHI LƯU (Độ phức tạp = 12)
+        String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt(12));
+        
+        // Tạo đối tượng User mới
         User newUser = new User();
         newUser.setUsername(username);
-        newUser.setPassword(password);
+        newUser.setPassword(hashedPassword); // Lưu chuỗi đã mã hóa
         newUser.setNickname(username);
         
         // Gọi hàm Insert xuống DB
