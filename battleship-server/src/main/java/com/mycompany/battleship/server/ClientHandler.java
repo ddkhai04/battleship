@@ -92,14 +92,7 @@ public class ClientHandler implements Runnable {
                     
                     // Send command to the other Client to close the game board
                     this.opponent.sendMessage("OPPONENT_QUIT|Opponent disconnected. The match is canceled.");
-                    
-                    // Pull the remaining player back to ONLINE status
-                if (this.opponent != null) {
-                    System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
-                    
-                    // Send command to the other Client to close the game board
-                    this.opponent.sendMessage("OPPONENT_QUIT|Đối thủ đã mất kết nối. Trận đấu bị hủy.");
-                    
+                                     
                     // Pull the remaining player back to ONLINE status
                     if (this.opponent.currentUser != null) {
                         new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
