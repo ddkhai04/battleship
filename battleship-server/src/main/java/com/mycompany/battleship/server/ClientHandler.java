@@ -88,6 +88,13 @@ public class ClientHandler implements Runnable {
                 
                 // RESCUE OPPONENT: Handle if the player disconnects during a match
                 if (this.opponent != null) {
+                    System.out.println("Rescuing " + this.opponent.loggedInUsername + " because the opponent disconnected.");
+                    
+                    // Send command to the other Client to close the game board
+                    this.opponent.sendMessage("OPPONENT_QUIT|Opponent disconnected. The match is canceled.");
+                    
+                    // Pull the remaining player back to ONLINE status
+                if (this.opponent != null) {
                     System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
                     
                     // Send command to the other Client to close the game board
