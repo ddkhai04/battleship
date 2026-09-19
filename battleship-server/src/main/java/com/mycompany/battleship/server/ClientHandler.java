@@ -18,7 +18,6 @@ public class ClientHandler implements Runnable {
     private String loggedInUsername = null;
     private User currentUser = null;
     
-    // Lưu lại tham chiếu đến luồng của đối thủ khi vào trận
     private ClientHandler opponent = null; 
 
     public ClientHandler(Socket socket) {
@@ -53,6 +52,9 @@ public class ClientHandler implements Runnable {
                     case "INVITE":
                         if (parts.length >= 2) handleInvite(parts[1]);
                         break;
+                    case "CANCEL_INVITE":
+                        if (parts.length >= 2) handleCancelInvite(parts[1]);
+                        break;
                     case "ACCEPT":
                     case "INVITE_ACCEPT":    
                         if (parts.length >= 2) handleAccept(parts[1]);
@@ -75,27 +77,21 @@ public class ClientHandler implements Runnable {
                     new UserDAO().updateStatus(currentUser.getId(), "OFFLINE");
                 }
                 
-                // GIẢI CỨU ĐỐI THỦ: Xử lý nếu người này đang trong trận mà thoát ngang
                 if (this.opponent != null) {
                     System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
-                    
-                    // Gửi lệnh báo cho Client kia biết để đóng bàn cờ
                     this.opponent.sendMessage("OPPONENT_QUIT|Đối thủ đã mất kết nối. Trận đấu bị hủy.");
                     
-                    // Kéo người ở lại về trạng thái ONLINE
                     if (this.opponent.currentUser != null) {
                         new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
                         this.opponent.currentUser.setStatus("ONLINE");
                     }
                     
-                    // Xóa liên kết
                     this.opponent.opponent = null;
                     this.opponent = null;
                 }
                 
                 System.out.println(loggedInUsername + " đã thoát. Còn lại " + BattleshipServer.onlineUsers.size() + " người online.");
                 
-                // BROADCAST: Cập nhật ngay lập tức ra toàn bộ sảnh chờ
                 for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                     client.handleListPlayers();
                 }
@@ -172,7 +168,6 @@ public class ClientHandler implements Runnable {
             
             String realStatus = u.getStatus();
             
-            // Lọc toàn bộ lỗi "ma"
             if (!BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
                 realStatus = "OFFLINE";
             }
@@ -210,6 +205,14 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    private void handleCancelInvite(String targetUser) {
+        ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
+        if (targetHandler != null) {
+            targetHandler.sendMessage("INVITE_CANCELLED|" + this.loggedInUsername);
+            System.out.println(this.loggedInUsername + " đã hủy lời mời tới " + targetUser);
+        }
+    }
+
     private void handleAccept(String challengerUsername) {
         if ("IN_GAME".equals(this.currentUser.getStatus())) {
             out.println("ERROR|Bạn đang trong trận đấu khác, không thể vào trận này.");
@@ -238,7 +241,6 @@ public class ClientHandler implements Runnable {
             
             String roomId = "ROOM_" + System.currentTimeMillis();
             
-            // [ĐÃ FIX]: Tách riêng lệnh gửi cho từng người để hiển thị đúng tên đối thủ chéo nhau
             challengerHandler.sendMessage("MATCH_START|" + roomId + "|" + this.loggedInUsername);
             out.println("MATCH_START|" + roomId + "|" + challengerUsername);
             
@@ -256,7 +258,6 @@ public class ClientHandler implements Runnable {
         ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
         
         if (challengerHandler != null) {
-            // Lệnh này đã bắn đúng về phía Client của người mời
             challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " đã từ chối lời mời của " + challengerUsername);
         }
