@@ -11,8 +11,6 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.animation.FadeTransition;
-import javafx.util.Duration;
 /**
  * @author DINH THE LINH
  */
@@ -43,9 +41,9 @@ public class RegisterGUI extends Application {
         txtUsername.setPromptText("Tên đăng nhập (3-20 ký tự)...");
         txtUsername.setMaxWidth(350);
         txtUsername.getStyleClass().add("input-field");
-        
+
         // Mẹo UX: Tự động xóa viền đỏ khi người dùng bắt đầu gõ sửa lại chữ
-        txtUsername.setOnKeyTyped(e -> txtUsername.setStyle(""));
+        txtUsername.setOnKeyTyped(e -> txtUsername.getStyleClass().remove("input-error"));
 
         txtPassword = new PasswordField();
         txtPassword.setPromptText("Mật khẩu...");
@@ -100,7 +98,7 @@ public class RegisterGUI extends Application {
         String confirm = txtConfirm.getText().trim();
 
         // Xóa viền đỏ cũ mỗi lần bấm nút (nếu có)
-        txtUsername.setStyle("");
+        txtUsername.getStyleClass().remove("input-error");
 
         if (user.isEmpty() || pass.isEmpty() || confirm.isEmpty()) {
             lblThongBao.getStyleClass().removeAll("message-info", "message-error");
@@ -114,9 +112,11 @@ public class RegisterGUI extends Application {
             lblThongBao.getStyleClass().removeAll("message-info", "message-error");
             lblThongBao.getStyleClass().add("message-error");
             lblThongBao.setText("Tên đăng nhập phải từ 3 đến 20 ký tự!");
-            
+
             // Đổi viền ô username thành màu đỏ và giữ nguyên text người dùng đã nhập
-            txtUsername.setStyle("-fx-border-color: #e63946; -fx-border-width: 2; -fx-border-radius: 8;");
+            if (!txtUsername.getStyleClass().contains("input-error")) {
+                txtUsername.getStyleClass().add("input-error");
+            }
             return;
         }
 

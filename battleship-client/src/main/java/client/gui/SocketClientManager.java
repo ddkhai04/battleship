@@ -55,7 +55,19 @@ public class SocketClientManager {
             out.write(noiDung);
             out.newLine();
             out.flush();
-            System.out.println("[GUI] " + noiDung);
+            
+            // --- FIX BẢO MẬT: CHE MẬT KHẨU KHI IN RA CONSOLE ---
+            String logContent = noiDung;
+            if (noiDung.startsWith("LOGIN|") || noiDung.startsWith("REGISTER|")) {
+                String[] parts = noiDung.split("\\|");
+                if (parts.length >= 3) {
+                    // Giữ lại phần tử 0 (Lệnh) và phần tử 1 (Tên đăng nhập), che phần tử 2 (Mật khẩu)
+                    logContent = parts[0] + "|" + parts[1] + "|***HIDDEN***";
+                }
+            }
+            System.out.println("[GUI] " + logContent);
+            // ---------------------------------------------------
+            
         } catch (IOException e) {
             System.out.println("[LOI] Gui du lieu that bai: " + e.getMessage());
         }
@@ -162,6 +174,16 @@ public class SocketClientManager {
                     if (lobbyScreen != null) {
                         String nguoiHuy = parts.length > 1 ? parts[1] : "";
                         lobbyScreen.doiThuHuyLoiMoi(nguoiHuy);
+                    }
+                });
+                break;
+                
+            // THÊM MỚI: Xử lý khi đối thủ bận hoặc offline
+            case "INVITE_FAIL":
+                Platform.runLater(() -> {
+                    if (lobbyScreen != null) {
+                        String lyDo = parts.length > 1 ? parts[1] : "Không thể gửi lời mời lúc này.";
+                        lobbyScreen.loiThachDauThatBai(lyDo);
                     }
                 });
                 break;

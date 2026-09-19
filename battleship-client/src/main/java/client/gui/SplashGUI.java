@@ -14,7 +14,6 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
-import java.io.File;
 import java.net.URL;
 
 /**
@@ -100,20 +99,26 @@ public class SplashGUI extends Application {
 
         // --- 4. ĐẶT ẢNH NỀN VÀ GẮN COMPONENT ---
         StackPane root = new StackPane();
-        
-        // Ưu tiên tìm file ảnh động GIF trước
-        File fileAnh = new File("src/main/resources/bg.gif"); 
-        
-        // Nếu không có file GIF, tự động lùi về dùng file PNG tĩnh
-        if (!fileAnh.exists()) {
-            fileAnh = new File("src/main/resources/bg.png"); 
+
+        // SUA LOI: ban goc dung new File("src/main/resources/bg.gif") de doc anh.
+        // Cach nay chi hoat dong khi chay TRONG IDE va thu muc lam viec (working
+        // directory) dung bang goc project. Khi build thanh file .jar roi chay
+        // (hoac ban giao cho ai do chay o may khac / thu muc khac), anh nen se
+        // KHONG BAO GIO tim thay vi luc do "src/main/resources/..." khong con
+        // ton tai o dang thu muc that nua (no da bi dong goi vao ben trong jar).
+        // Sua bang cach doc qua classpath (getClass().getResource(...)) giong
+        // het cach nhac (bg.mp3) va font (TitanOne-Regular.ttf) da lam o tren -
+        // cach nay hoat dong dung ca khi chay trong IDE lan khi da dong goi jar.
+        URL bgUrl = getClass().getResource("/bg.gif");
+        if (bgUrl == null) {
+            bgUrl = getClass().getResource("/bg.png");
         }
-        
-        if (!fileAnh.exists()) {
-            System.out.println("[LỖI] Không tìm thấy ảnh tại: " + fileAnh.getAbsolutePath());
-            root.setStyle("-fx-background-color: #2c3e50;"); 
+
+        if (bgUrl == null) {
+            System.out.println("[LỖI] Không tìm thấy ảnh nền bg.gif hoặc bg.png trong resources.");
+            root.setStyle("-fx-background-color: #2c3e50;");
         } else {
-            String imageUrl = fileAnh.toURI().toString();
+            String imageUrl = bgUrl.toExternalForm();
             // Thiết lập size 100% 100% để ép khít mép cửa sổ
             root.setStyle("-fx-background-image: url('" + imageUrl + "'); "
                     + "-fx-background-size: 100% 100%; "

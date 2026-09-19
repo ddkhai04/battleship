@@ -11,8 +11,6 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-import javafx.animation.FadeTransition;
-import javafx.util.Duration;
 /**
  * @author DINH THE LINH
  */
@@ -111,14 +109,14 @@ public class LoginGUI extends Application {
         String pass = txtPassword.getText().trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
-            lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+            lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
             lblThongBao.getStyleClass().add("message-error");
             lblThongBao.setText("Vui lòng nhập đủ tài khoản và mật khẩu!");
             return;
         }
 
         btnLogin.setDisable(true);
-        lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+        lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
         lblThongBao.getStyleClass().add("message-info");
         lblThongBao.setText("Đang kết nối tới server trung tâm...");
 
@@ -129,7 +127,7 @@ public class LoginGUI extends Application {
                 SocketClientManager.guiTinNhan("LOGIN|" + user + "|" + pass);
             } else {
                 Platform.runLater(() -> {
-                    lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+                    lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
                     lblThongBao.getStyleClass().add("message-error");
                     lblThongBao.setText("Không kết nối được Server. Kiểm tra Server đã chạy chưa!");
                     btnLogin.setDisable(false);
@@ -155,16 +153,15 @@ public class LoginGUI extends Application {
 
     public void dangNhapThatBai(String lyDo) {
         btnLogin.setDisable(false);
-        lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+        lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
         lblThongBao.getStyleClass().add("message-error");
         lblThongBao.setText(lyDo);
         txtPassword.clear();
     }
     // Hàm này được gọi từ form RegisterGUI sau khi đăng ký thành công
     public void hienThiThongBaoXanh(String thongBao) {
-        lblThongBao.getStyleClass().removeAll("message-error", "message-info");
-        // Bơm thẳng màu xanh lá cây vào thông báo
-        lblThongBao.setStyle("-fx-text-fill: #2ecc71; -fx-font-weight: bold;");
+        lblThongBao.getStyleClass().removeAll("message-error", "message-info", "message-success");
+        lblThongBao.getStyleClass().add("message-success");
         lblThongBao.setText(thongBao);
     }
 
