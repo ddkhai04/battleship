@@ -16,6 +16,14 @@
        - Do cam (nut chinh, giong nut "BAT DAU CHOI") : #f2603f -> #d94a2f
        - Chu tieu de / input (Navy dam de de doc) : #1b2a3a
        - Kinh mo (form-card) : rgba(255,255,255,0.55)
+
+   Ghi chu ve anh nen (.auth-root): url('bg1.gif') la duong dan TUONG DOI,
+   JavaFX se tu tim file nay o CUNG THU MUC voi style.css tren classpath
+   (tuc la phai dat bg1.gif truc tiep trong src/main/resources/, ngang
+   hang voi style.css). Day la cach lam AN TOAN, khac voi loi dung
+   new File("src/...") ben SplashGUI.java da sua truoc do - vi day la
+   duong dan CSS duoc phan giai qua classpath, khong phai duong dan
+   he thong file, nen van chay dung ca khi dong goi thanh .jar.
    ================================================================== */
 
 /* ------------------------------------------------------------------
@@ -23,7 +31,13 @@
    ------------------------------------------------------------------ */
 .root {
     -fx-font-family: "Segoe UI", Arial, sans-serif;
-    -fx-background-color: linear-gradient(to bottom, #eaf6fb, #bfe3f2 60%, #8fd0e8);
+}
+
+.auth-root {
+    -fx-background-image: url('bg1.gif');
+    -fx-background-size: 100% 100%;
+    -fx-background-position: center center;
+    -fx-background-repeat: no-repeat;
 }
 
 /* ------------------------------------------------------------------
@@ -76,6 +90,16 @@
     -fx-background-color: rgba(255, 255, 255, 0.92);
 }
 
+/* Vien do khi validate sai (vi du: username sai do dai) - dung ket hop
+   voi .input-field tren cung 1 o nhap. Truoc day mau do nay bi "bom cung"
+   bang setStyle() ngay trong Java, ghi de len het CSS cua .input-field va
+   khong the tat bang getStyleClass duoc, phai gan lai setStyle("") de xoa -
+   gay 2 co che dieu khien giao dien khac nhau tren cung 1 component. */
+.input-field.input-error {
+    -fx-border-color: #e63946;
+    -fx-border-width: 2;
+}
+
 /* ------------------------------------------------------------------
    5. THONG BAO (label loi / dang xu ly)
    ------------------------------------------------------------------ */
@@ -91,6 +115,16 @@
 /* Trang thai loi (do dam - khac voi do cam cua nut chinh de de phan biet) */
 .message-error {
     -fx-text-fill: #c0392b;
+}
+
+/* Trang thai thanh cong (vi du: dang ky tai khoan xong).
+   Truoc day mau nay bi "bom cung" bang setStyle() ngay trong Java voi
+   mau xanh #2ecc71 con sot lai tu bang mau Dark Navy/Radar cu, khong con
+   hop voi tong mau Ocean/San Ho hien tai. Chuyen ve day de dong bo theme
+   va de doi mau sau nay ma khong phai sua code Java. */
+.message-success {
+    -fx-text-fill: #219653;
+    -fx-font-weight: bold;
 }
 
 /* ------------------------------------------------------------------

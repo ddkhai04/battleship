@@ -61,6 +61,9 @@ public class ClientHandler implements Runnable {
                     case "INVITE":
                         if (parts.length >= 2) handleInvite(parts[1]);
                         break;
+                    case "CANCEL_INVITE":
+                        if (parts.length >= 2) handleCancelInvite(parts[1]);
+                        break;
                     case "ACCEPT":
                     case "INVITE_ACCEPT":    
                         if (parts.length >= 2) handleAccept(parts[1]);
@@ -91,6 +94,10 @@ public class ClientHandler implements Runnable {
                     this.opponent.sendMessage("OPPONENT_QUIT|Opponent disconnected. The match is canceled.");
                     
                     // Pull the remaining player back to ONLINE status
+                if (this.opponent != null) {
+                    System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
+                    this.opponent.sendMessage("OPPONENT_QUIT|Đối thủ đã mất kết nối. Trận đấu bị hủy.");
+                    
                     if (this.opponent.currentUser != null) {
                         new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
                         this.opponent.currentUser.setStatus("ONLINE");
@@ -215,6 +222,14 @@ public class ClientHandler implements Runnable {
             System.out.println(this.loggedInUsername + " sent an invite to " + targetUser);
         } else {
             out.println("INVITE_FAIL|Player " + targetUser + " is not online.");
+        }
+    }
+
+    private void handleCancelInvite(String targetUser) {
+        ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
+        if (targetHandler != null) {
+            targetHandler.sendMessage("INVITE_CANCELLED|" + this.loggedInUsername);
+            System.out.println(this.loggedInUsername + " đã hủy lời mời tới " + targetUser);
         }
     }
 

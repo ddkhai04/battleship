@@ -11,7 +11,6 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
-
 /**
  * @author DINH THE LINH
  */
@@ -88,11 +87,14 @@ public class LoginGUI extends Application {
         // Khung nền Radar
         VBox root = new VBox();
         root.setAlignment(Pos.CENTER);
+        root.getStyleClass().add("auth-root");
         root.getChildren().add(formCard);
 
         Scene scene = new Scene(root, 800, 600);
         // Nạp file CSS riêng vào Scene
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
+       
 
         primaryStage.setScene(scene);
         primaryStage.setResizable(false);
@@ -107,14 +109,14 @@ public class LoginGUI extends Application {
         String pass = txtPassword.getText().trim();
 
         if (user.isEmpty() || pass.isEmpty()) {
-            lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+            lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
             lblThongBao.getStyleClass().add("message-error");
             lblThongBao.setText("Vui lòng nhập đủ tài khoản và mật khẩu!");
             return;
         }
 
         btnLogin.setDisable(true);
-        lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+        lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
         lblThongBao.getStyleClass().add("message-info");
         lblThongBao.setText("Đang kết nối tới server trung tâm...");
 
@@ -125,7 +127,7 @@ public class LoginGUI extends Application {
                 SocketClientManager.guiTinNhan("LOGIN|" + user + "|" + pass);
             } else {
                 Platform.runLater(() -> {
-                    lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+                    lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
                     lblThongBao.getStyleClass().add("message-error");
                     lblThongBao.setText("Không kết nối được Server. Kiểm tra Server đã chạy chưa!");
                     btnLogin.setDisable(false);
@@ -151,10 +153,16 @@ public class LoginGUI extends Application {
 
     public void dangNhapThatBai(String lyDo) {
         btnLogin.setDisable(false);
-        lblThongBao.getStyleClass().removeAll("message-info", "message-error");
+        lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
         lblThongBao.getStyleClass().add("message-error");
         lblThongBao.setText(lyDo);
         txtPassword.clear();
+    }
+    // Hàm này được gọi từ form RegisterGUI sau khi đăng ký thành công
+    public void hienThiThongBaoXanh(String thongBao) {
+        lblThongBao.getStyleClass().removeAll("message-error", "message-info", "message-success");
+        lblThongBao.getStyleClass().add("message-success");
+        lblThongBao.setText(thongBao);
     }
 
     public static void main(String[] args) {
