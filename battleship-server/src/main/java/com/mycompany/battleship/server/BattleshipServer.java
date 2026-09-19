@@ -6,26 +6,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class BattleshipServer {
     
-    // Lưu trữ các Client đang kết nối (Key là username) để quản lý danh sách online và gửi lời mời
+    // Store connected Clients (Key is username) to manage online list and send invites
     public static ConcurrentHashMap<String, ClientHandler> onlineUsers = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
-        int port = 2209; // Cổng mạng cho Server
+        int port = 2209; // Network port for the Server
         
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Lobby Server đang khởi động và lắng nghe ở port " + port + "...");
+            System.out.println("Lobby Server is starting and listening on port " + port + "...");
             
-            // Vòng lặp vĩnh cửu để liên tục đón người chơi mới
+            // Infinite loop to continuously accept new players
             while (true) {
                 Socket socket = serverSocket.accept();
-                System.out.println("Có kết nối mới từ: " + socket.getInetAddress());
+                System.out.println("New connection from: " + socket.getInetAddress());
                 
-                // Giao kết nối vừa nhận cho một Thread xử lý độc lập
+                // Assign the accepted connection to an independent Thread
                 ClientHandler handler = new ClientHandler(socket);
                 new Thread(handler).start();
             }
         } catch (Exception e) {
-            System.err.println("Lỗi khởi động Server: " + e.getMessage());
+            System.err.println("Server startup error: " + e.getMessage());
             e.printStackTrace();
         }
     }

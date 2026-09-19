@@ -18,6 +18,7 @@ public class ClientHandler implements Runnable {
     private String loggedInUsername = null;
     private User currentUser = null;
     
+    // Save reference to opponent's thread when entering a match
     private ClientHandler opponent = null; 
 
     public ClientHandler(Socket socket) {
@@ -30,11 +31,19 @@ public class ClientHandler implements Runnable {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            System.out.println("Đã sẵn sàng giao tiếp với một Client mới!");
+            System.out.println("Ready to communicate with a new Client!");
             
             String request;
             while ((request = in.readLine()) != null) {
-                System.out.println("Nhận được lệnh: " + request);
+                // Hide password in Server logs for LOGIN and REGISTER commands
+                if (request.startsWith("LOGIN|") || request.startsWith("REGISTER|")) {
+                    String[] tempParts = request.split("\\|");
+                    if (tempParts.length >= 2) {
+                        System.out.println("Received command: " + tempParts[0] + " from account: " + tempParts[1]);
+                    }
+                } else {
+                    System.out.println("Received command: " + request);
+                }
                 
                 String[] parts = request.split("\\|");
                 String command = parts[0];
@@ -64,11 +73,11 @@ public class ClientHandler implements Runnable {
                         if (parts.length >= 2) handleReject(parts[1]);
                         break;
                     default:
-                        System.out.println("Lệnh không xác định: " + command);
+                        System.out.println("Unknown command: " + command);
                 }
             }
         } catch (IOException e) {
-            System.out.println("Client đột ngột ngắt kết nối: " + e.getMessage());
+            System.out.println("Client unexpectedly disconnected: " + e.getMessage());
         } finally {
             if (loggedInUsername != null) {
                 BattleshipServer.onlineUsers.remove(loggedInUsername);
@@ -77,21 +86,27 @@ public class ClientHandler implements Runnable {
                     new UserDAO().updateStatus(currentUser.getId(), "OFFLINE");
                 }
                 
+                // RESCUE OPPONENT: Handle if the player disconnects during a match
                 if (this.opponent != null) {
                     System.out.println("Giải cứu " + this.opponent.loggedInUsername + " do đối thủ thoát đột ngột.");
+                    
+                    // Send command to the other Client to close the game board
                     this.opponent.sendMessage("OPPONENT_QUIT|Đối thủ đã mất kết nối. Trận đấu bị hủy.");
                     
+                    // Pull the remaining player back to ONLINE status
                     if (this.opponent.currentUser != null) {
                         new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
                         this.opponent.currentUser.setStatus("ONLINE");
                     }
                     
+                    // Clear reference
                     this.opponent.opponent = null;
                     this.opponent = null;
                 }
                 
-                System.out.println(loggedInUsername + " đã thoát. Còn lại " + BattleshipServer.onlineUsers.size() + " người online.");
+                System.out.println(loggedInUsername + " has left. Remaining online users: " + BattleshipServer.onlineUsers.size());
                 
+                // BROADCAST: Instantly update the lobby
                 for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                     client.handleListPlayers();
                 }
@@ -105,8 +120,8 @@ public class ClientHandler implements Runnable {
         
         if (user != null && BCrypt.checkpw(password, user.getPassword())) {
             if (BattleshipServer.onlineUsers.containsKey(username)) {
-                out.println("LOGIN_FAIL|Tài khoản này đang được đăng nhập ở nơi khác.");
-                System.out.println(username + " đăng nhập thất bại do bị trùng phiên.");
+                out.println("LOGIN_FAIL|This account is already logged in elsewhere.");
+                System.out.println(username + " login failed due to duplicate session.");
                 return;
             }
             
@@ -119,14 +134,14 @@ public class ClientHandler implements Runnable {
             this.currentUser.setStatus("ONLINE");
             
             out.println("LOGIN_OK|" + username + "|" + user.getScore());
-            System.out.println(username + " đã đăng nhập thành công!");
+            System.out.println(username + " logged in successfully!");
             
             for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                 client.handleListPlayers();
             }
             
         } else {
-            out.println("LOGIN_FAIL|Sai tài khoản hoặc mật khẩu");
+            out.println("LOGIN_FAIL|Invalid username or password.");
         }
     }
 
@@ -134,7 +149,7 @@ public class ClientHandler implements Runnable {
         UserDAO userDAO = new UserDAO();
         
         if (userDAO.checkUsernameExist(username)) {
-            out.println("REGISTER_FAIL|Tài khoản đã tồn tại");
+            out.println("REGISTER_FAIL|Username already exists.");
             return;
         }
         
@@ -147,9 +162,9 @@ public class ClientHandler implements Runnable {
         
         if (userDAO.registerUser(newUser)) {
             out.println("REGISTER_OK");
-            System.out.println("Đăng ký thành công tài khoản: " + username);
+            System.out.println("Account registered successfully: " + username);
         } else {
-            out.println("REGISTER_FAIL|Lỗi hệ thống CSDL");
+            out.println("REGISTER_FAIL|Database system error.");
         }
     }
 
@@ -168,6 +183,7 @@ public class ClientHandler implements Runnable {
             
             String realStatus = u.getStatus();
             
+            // Filter out "ghost" states
             if (!BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
                 realStatus = "OFFLINE";
             }
@@ -186,7 +202,7 @@ public class ClientHandler implements Runnable {
 
     private void handleInvite(String targetUser) {
         if ("IN_GAME".equals(this.currentUser.getStatus())) {
-            out.println("INVITE_FAIL|Bạn đang trong trận đấu, không thể thách đấu thêm.");
+            out.println("INVITE_FAIL|You are currently in a game, cannot send invites.");
             return;
         }
 
@@ -194,14 +210,14 @@ public class ClientHandler implements Runnable {
         
         if (targetHandler != null && targetHandler.currentUser != null) {
             if ("IN_GAME".equals(targetHandler.currentUser.getStatus())) {
-                out.println("INVITE_FAIL|Người chơi " + targetUser + " đang bận trong trận đấu khác.");
+                out.println("INVITE_FAIL|Player " + targetUser + " is busy in another match.");
                 return;
             }
             
             targetHandler.sendMessage("INVITE_FROM|" + this.loggedInUsername);
-            System.out.println(this.loggedInUsername + " đã gửi lời mời tới " + targetUser);
+            System.out.println(this.loggedInUsername + " sent an invite to " + targetUser);
         } else {
-            out.println("INVITE_FAIL|Người chơi " + targetUser + " không online.");
+            out.println("INVITE_FAIL|Player " + targetUser + " is not online.");
         }
     }
 
@@ -215,7 +231,7 @@ public class ClientHandler implements Runnable {
 
     private void handleAccept(String challengerUsername) {
         if ("IN_GAME".equals(this.currentUser.getStatus())) {
-            out.println("ERROR|Bạn đang trong trận đấu khác, không thể vào trận này.");
+            out.println("ERROR|You are in another match, cannot join this one.");
             return;
         }
 
@@ -224,7 +240,7 @@ public class ClientHandler implements Runnable {
         if (challengerHandler != null && challengerHandler.currentUser != null && this.currentUser != null) {
             
             if ("IN_GAME".equals(challengerHandler.currentUser.getStatus())) {
-                out.println("ERROR|Người thách đấu đã tham gia trận đấu khác.");
+                out.println("ERROR|The challenger has joined another match.");
                 return;
             }
             
@@ -248,9 +264,9 @@ public class ClientHandler implements Runnable {
                 client.handleListPlayers();
             }
             
-            System.out.println("Trận đấu bắt đầu giữa: " + challengerUsername + " và " + this.loggedInUsername);
+            System.out.println("Match started between: " + challengerUsername + " and " + this.loggedInUsername);
         } else {
-            out.println("ERROR|Người thách đấu đã thoát hoặc không hợp lệ.");
+            out.println("ERROR|The challenger has left or is invalid.");
         }
     }
 
@@ -259,7 +275,7 @@ public class ClientHandler implements Runnable {
         
         if (challengerHandler != null) {
             challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
-            System.out.println(this.loggedInUsername + " đã từ chối lời mời của " + challengerUsername);
+            System.out.println(this.loggedInUsername + " rejected the invite from " + challengerUsername);
         }
     }
     
