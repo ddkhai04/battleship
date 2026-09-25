@@ -4,6 +4,7 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -52,8 +53,9 @@ public class LobbyGUI extends Application {
     private Alert alertChoXacNhan;
     private Alert alertNhanLoiMoi;
     private boolean isWaiting = false;
-    private boolean biHuyBo = false; // Cờ kiểm tra xem hộp thoại bị đóng do đối thủ hủy hay do mình bấm
+    private boolean biHuyBo = false; 
 
+    
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -71,11 +73,24 @@ public class LobbyGUI extends Application {
         tabPane.getTabs().add(taoTabXepHang());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.getStyleClass().add("custom-tabpane");
-
+        
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab != null) {
+                if (newTab.getText().equals("Bảng xếp hạng")) {
+                    SocketClientManager.guiTinNhan("LEADERBOARD");
+                } else if (newTab.getText().equals("Lịch sử đấu")) {
+                    SocketClientManager.guiTinNhan("MATCH_HISTORY");
+                } else if (newTab.getText().equals("Danh sách người chơi")) {
+                    // Dùng LIST_PLAYERS mặc định, không kèm tham số tìm kiếm để reset danh sách
+                    SocketClientManager.guiTinNhan("LIST_PLAYERS"); 
+                }
+            }
+        });
+        
         BorderPane.setMargin(tabPane, new Insets(10, 20, 20, 20));
         root.setCenter(tabPane);
 
-        SocketClientManager.guiTinNhan("LIST_PLAYERS||false");
+        SocketClientManager.guiTinNhan("LIST_PLAYERS");
 
         Scene scene = new Scene(root, 900, 600);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
@@ -114,9 +129,13 @@ public class LobbyGUI extends Application {
         txtSearch = new TextField();
         txtSearch.setPromptText("Tìm theo tên...");
         txtSearch.getStyleClass().add("input-field");
-        Button btnSearch = new Button("Tìm kiếm");
+        
+        Button btnSearch = new Button("Làm mới"); // Đổi nút thành Làm mới để load lại danh sách từ server
         btnSearch.getStyleClass().add("btn-secondary");
-        btnSearch.setOnAction(e -> SocketClientManager.guiTinNhan("LIST_PLAYERS|" + txtSearch.getText().trim() + "|false"));
+        btnSearch.setOnAction(e -> {
+            SocketClientManager.guiTinNhan("LIST_PLAYERS");
+            txtSearch.clear(); // Bấm làm mới thì xóa trắng ô tìm kiếm
+        });
 
         HBox toolbar = new HBox(10, txtSearch, btnSearch);
         toolbar.setPadding(new Insets(15));
@@ -131,7 +150,36 @@ public class LobbyGUI extends Application {
         TableColumn<String[], String> colTrangThai = new TableColumn<>("Trạng thái");
         colTrangThai.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
         colTrangThai.setPrefWidth(150);
+        colTrangThai.setCellFactory(col -> new javafx.scene.control.TableCell<String[], String>() {
+        private final javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(6);
 
+        @Override
+        protected void updateItem(String item, boolean empty) {
+            super.updateItem(item, empty);
+
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+            } else {
+                setText(item.toLowerCase()); 
+                setGraphicTextGap(8); 
+
+                if (item.equalsIgnoreCase("ONLINE")) {
+                    dot.setFill(javafx.scene.paint.Color.web("#008000")); 
+                    setStyle("-fx-text-fill: #008000; -fx-font-weight: bold;");
+                } else if (item.equalsIgnoreCase("OFFLINE")) {
+                    dot.setFill(javafx.scene.paint.Color.GRAY);
+                    setStyle("-fx-text-fill: gray; -fx-font-weight: normal;");
+                } else {
+                    dot.setFill(javafx.scene.paint.Color.web("#E67E22"));
+                    setStyle("-fx-text-fill: #E67E22; -fx-font-weight: bold;");
+                }
+
+                setGraphic(dot);
+            }
+        }
+    });
+        
         TableColumn<String[], String> colDiem = new TableColumn<>("Điểm");
         colDiem.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
         colDiem.setPrefWidth(100);
@@ -143,7 +191,6 @@ public class LobbyGUI extends Application {
             {
                 btn.getStyleClass().add("btn-challenge");
                 btn.setOnAction(e -> {
-                    // Chống spam: Đang đợi người khác thì không cho bấm
                     if (isWaiting) {
                         Alert canhkBao = new Alert(AlertType.WARNING, "Bạn đang đợi một người khác trả lời. Hãy Hủy yêu cầu cũ trước!");
                         DialogPane dp = canhkBao.getDialogPane();
@@ -171,8 +218,26 @@ public class LobbyGUI extends Application {
             }
         });
 
+        // TÍNH NĂNG MỚI: Bọc danh sách gốc vào FilteredList để TÌM KIẾM TỨC THÌ
+        FilteredList<String[]> filteredData = new FilteredList<>(dsNguoiChoi, p -> true);
+        
+        // Lắng nghe sự kiện người dùng GÕ CHỮ vào ô tìm kiếm
+        txtSearch.textProperty().addListener((observable, oldValue, newValue) -> {
+            filteredData.setPredicate(player -> {
+                // Nếu xóa trắng ô tìm kiếm thì hiện tất cả
+                if (newValue == null || newValue.isEmpty()) {
+                    return true;
+                }
+                
+                String lowerCaseFilter = newValue.toLowerCase();
+                // Kiểm tra xem tên người chơi có chứa từ khóa đang nhập không
+                return player[0].toLowerCase().contains(lowerCaseFilter); 
+            });
+        });
+
         tblPlayers.getColumns().addAll(colTen, colTrangThai, colDiem, colThachDau);
-        tblPlayers.setItems(dsNguoiChoi);
+        // Nhúng cái danh sách ĐÃ ĐƯỢC LỌC (filteredData) vào bảng thay vì danh sách gốc
+        tblPlayers.setItems(filteredData);
 
         VBox box = new VBox(toolbar, tblPlayers);
         return new Tab("Danh sách người chơi", box);
@@ -268,7 +333,6 @@ public class LobbyGUI extends Application {
         }
     }
 
-    // 1. Hàm hiện bảng Đang Chờ (Người gửi có nút Hủy)
     public void hienThiHopThoaiCho(String tenDoiThu) {
         isWaiting = true; 
         alertChoXacNhan = new Alert(AlertType.CONFIRMATION);
@@ -292,13 +356,7 @@ public class LobbyGUI extends Application {
         }
     }
 
-    // 2. Hàm khi có người thách đấu mình 
-    // 2. Hàm khi có người thách đấu mình 
     public void nhanLoiThachDau(String nguoiMoi) {
-        // BỨC TƯỜNG LỬA CHẶN XEN NGANG:
-        // - Nếu đang gửi yêu cầu (isWaiting) HOẶC bảng "Đang chờ" đang bật
-        // - HOẶC đang xem lời mời của một người khác (alertNhanLoiMoi đang bật)
-        // -> Tự động từ chối hết!
         boolean dangChoNguoiKhac = isWaiting || (alertChoXacNhan != null && alertChoXacNhan.isShowing());
         boolean dangXemLoiMoi = (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing());
 
@@ -307,7 +365,7 @@ public class LobbyGUI extends Application {
             return; 
         }
 
-        biHuyBo = false; // Reset cờ mỗi lần có lời mời mới
+        biHuyBo = false; 
         alertNhanLoiMoi = new Alert(AlertType.CONFIRMATION);
         if (primaryStage != null) alertNhanLoiMoi.initOwner(primaryStage);
         
@@ -321,7 +379,6 @@ public class LobbyGUI extends Application {
 
         Optional<ButtonType> ketQua = alertNhanLoiMoi.showAndWait();
         
-        // CỰC KỲ QUAN TRỌNG: Nếu hộp thoại bị ép đóng do đối thủ hủy, thì KHÔNG gửi lệnh TỪ CHỐI nữa
         if (biHuyBo) {
             return; 
         }
@@ -333,7 +390,6 @@ public class LobbyGUI extends Application {
         }
     }
 
-    // 3. Hàm báo bị từ chối
     public void loiMoiBiTuChoi(String nguoiTuChoi) {
         if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) {
             alertChoXacNhan.close(); 
@@ -350,10 +406,9 @@ public class LobbyGUI extends Application {
         });
     }
 
-    // 4. Hàm đối phương hủy lời mời khi mình đang xem
     public void doiThuHuyLoiMoi(String nguoiHuy) {
         if (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing()) {
-            biHuyBo = true; // Bật cờ báo hiệu là "Tao bị ép đóng chứ không phải tao bấm Từ chối"
+            biHuyBo = true; 
             alertNhanLoiMoi.close(); 
 
             Platform.runLater(() -> {
@@ -367,31 +422,22 @@ public class LobbyGUI extends Application {
         }
     }
 
-    // 5. Hàm đồng ý và bắt đầu vào trận
     public void batDauTranDau(String[] parts) {
-        if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) alertChoXacNhan.close();
-        if (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing()) alertNhanLoiMoi.close();
-        isWaiting = false;
+        if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) {
+            alertChoXacNhan.close();
+            isWaiting = false; 
+        }
 
-        String roomId = parts.length > 1 ? parts[1] : "";
-        String doiThu = parts.length > 2 ? parts[2] : "";
-
-        Platform.runLater(() -> {
-            Alert alert = new Alert(AlertType.INFORMATION, "Đã vào phòng " + roomId + ", đối thủ của bạn là: " + doiThu + ".", ButtonType.OK);
-            alert.setTitle("Vào trận");
-            alert.setHeaderText("Còi báo động rền vang!");
-            alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
-            alert.getDialogPane().setMinWidth(Region.USE_PREF_SIZE);
-            alert.showAndWait();
-        });
+        if (primaryStage != null) {
+            primaryStage.close();
+        }
     }
 
-    // THÊM MỚI: Hàm hứng lỗi khi đối thủ đột ngột bận hoặc offline
     public void loiThachDauThatBai(String lyDo) {
         if (alertChoXacNhan != null && alertChoXacNhan.isShowing()) {
             alertChoXacNhan.close();
         }
-        isWaiting = false; // Mở khóa giao diện cho phép bấm nút khác
+        isWaiting = false; 
 
         Platform.runLater(() -> {
             Alert alert = new Alert(AlertType.ERROR, lyDo, ButtonType.OK);

@@ -1,0 +1,373 @@
+/* ==========================================================================
+   game-style.css
+   Clone phong cach Flat Design sang cua papergames.io:
+   nen trang, mat bien xanh ngoc pastel KHONG VIEN O (chi co dau cham),
+   tau dang vien thuoc (pill) bo goc tron voi 5 mau rieng biet.
+   Dung "looked-up color" cua JavaFX CSS (bien mau khai bao tai .root).
+   ========================================================================== */
+
+.root {
+    /* Nen chung */
+    -bg-app: #FFFFFF;
+    -border-light: #E0E0E0;
+    -text-main: #37474F;
+    -text-dim: #78909C;
+
+    /* Mat bien */
+    -sea: #B2DFDB;
+    -water-dot: #4DB6AC;
+    -miss-dot: #00796B;
+
+    /* Hit (dung chung cho ca 2 ban) */
+    -hit-bg: #EF5350;
+    -hit-mark: #FFFFFF;
+
+    /* Header 2 ban co */
+    -header-fleet-bg: #ECEFF1;
+    -header-fleet-text: #455A64;
+    -header-enemy-bg: #D6336C;
+    -header-enemy-text: #FFFFFF;
+
+    /* 5 mau tau */
+    -ship-2-a: #4DB6AC;
+    -ship-2-b: #00897B;
+    -ship-3a-a: #4FC3F7;
+    -ship-3a-b: #039BE5;
+    -ship-3b-a: #7986CB;
+    -ship-3b-b: #3949AB;
+    -ship-4-a: #BA68C8;
+    -ship-4-b: #8E24AA;
+    -ship-5-a: #FF8A65;
+    -ship-5-b: #FF5722;
+
+    /* Dong ho + luot choi */
+    -timer-bg: #B9F6CA;
+    -timer-text: #00695C;
+    -accent-active: #00897B;
+    -accent-waiting: #B0BEC5;
+
+    /* Kho vu khi */
+    -weapon-bg: #FFFFFF;
+    -weapon-border: #E0E0E0;
+    -weapon-selected-border: #00897B;
+    -weapon-selected-bg: #E0F2F1;
+    -badge-bg: #EF5350;
+
+    /* Dialog */
+    -dialog-bg: #FFFFFF;
+    -dialog-border: #E0E0E0;
+
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+.app-background {
+    -fx-background-color: -bg-app;
+}
+
+.game-root {
+    -fx-background-color: -bg-app;
+}
+
+/* ---------------- Top bar ---------------- */
+
+.top-bar {
+    -fx-background-color: -bg-app;
+    -fx-border-color: transparent transparent -border-light transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}
+
+.player-name {
+    -fx-text-fill: -text-main;
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+}
+
+.player-avatar {
+    -fx-stroke: white;
+    -fx-stroke-width: 2;
+}
+
+.avatar-color-1 {
+    -fx-fill: #80CBC4;
+}
+
+.avatar-color-2 {
+    -fx-fill: #CE93D8;
+}
+
+.player-avatar-initial {
+    -fx-text-fill: #263238;
+    -fx-font-weight: 800;
+    -fx-font-size: 14px;
+}
+
+.score-badge {
+    -fx-text-fill: #F9A825;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-background-color: #FFF8E1;
+    -fx-background-radius: 10;
+    -fx-padding: 2 8 2 8;
+}
+
+.timer-circle-bg {
+    -fx-fill: -timer-bg;
+    -fx-stroke: #80CBC4;
+    -fx-stroke-width: 2;
+}
+
+.timer-label {
+    -fx-text-fill: -timer-text;
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+}
+
+.timer-label-warn {
+    -fx-text-fill: -hit-bg;
+}
+
+.turn-indicator {
+    -fx-font-size: 12px;
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 3;
+}
+
+.turn-indicator-active {
+    -fx-text-fill: -accent-active;
+    -fx-font-weight: 700;
+}
+
+.turn-indicator-waiting {
+    -fx-text-fill: -accent-waiting;
+}
+
+/* ---------------- Boards ---------------- */
+
+.boards-area {
+    -fx-background-color: -bg-app;
+}
+
+.board-panel {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.14), 12, 0, 0, 4);
+}
+
+.board-header {
+    -fx-padding: 12 16 12 16;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12 12 0 0;
+}
+
+.board-header-fleet {
+    -fx-background-color: -header-fleet-bg;
+    -fx-text-fill: -header-fleet-text;
+}
+
+.board-header-enemy {
+    -fx-background-color: -header-enemy-bg;
+    -fx-text-fill: -header-enemy-text;
+}
+
+.grid-board {
+    -fx-background-color: -sea;
+    -fx-padding: 10;
+    -fx-background-radius: 0 0 12 12;
+}
+
+/* Quan trong: khong ve vien o vuong (border-width: 0) - dung dau cham thay cho luoi */
+.grid-cell {
+    -fx-border-width: 0;
+}
+
+.water-cell {
+    -fx-background-color: -sea;
+}
+
+.cell-interactive:hover {
+    -fx-background-color: derive(#B2DFDB, -8%);
+    -fx-cursor: hand;
+}
+
+.water-dot {
+    -fx-fill: -water-dot;
+}
+
+.miss-dot {
+    -fx-fill: -miss-dot;
+}
+
+.cell-hit {
+    -fx-background-color: -hit-bg;
+    -fx-background-radius: 6;
+}
+
+.hit-mark {
+    -fx-text-fill: -hit-mark;
+    -fx-font-size: 16px;
+    -fx-font-weight: 800;
+}
+
+/* ---------------- 5 mau tau (dang vien thuoc - bo goc tron lon) ---------------- */
+
+.cell-ship {
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 3, 0, 0, 1);
+}
+
+.ship-size-2 {
+    -fx-background-color: linear-gradient(to bottom, -ship-2-a, -ship-2-b);
+}
+
+.ship-size-3-a {
+    -fx-background-color: linear-gradient(to bottom, -ship-3a-a, -ship-3a-b);
+}
+
+.ship-size-3-b {
+    -fx-background-color: linear-gradient(to bottom, -ship-3b-a, -ship-3b-b);
+}
+
+.ship-size-4 {
+    -fx-background-color: linear-gradient(to bottom, -ship-4-a, -ship-4-b);
+}
+
+.ship-size-5 {
+    -fx-background-color: linear-gradient(to bottom, -ship-5-a, -ship-5-b);
+}
+
+/* ---------------- Inventory ---------------- */
+
+.inventory-bar {
+    -fx-background-color: -bg-app;
+    -fx-border-color: -border-light transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.weapon-button {
+    -fx-background-color: -weapon-bg;
+    -fx-background-radius: 8;
+    -fx-border-color: -weapon-border;
+    -fx-border-radius: 8;
+    -fx-border-width: 1.5;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 4, 0, 0, 1);
+}
+
+.weapon-button:hover {
+    -fx-border-color: -accent-active;
+}
+
+.weapon-button:selected {
+    -fx-border-color: -weapon-selected-border;
+    -fx-border-width: 2;
+    -fx-background-color: -weapon-selected-bg;
+}
+
+.weapon-button:disabled {
+    -fx-opacity: 0.4;
+    -fx-cursor: default;
+    -fx-effect: null;
+}
+
+.weapon-icon {
+    -fx-font-size: 20px;
+    -fx-text-fill: -text-main;
+}
+
+.weapon-name {
+    -fx-font-size: 10px;
+    -fx-text-fill: -text-dim;
+}
+
+.weapon-count-badge {
+    -fx-background-color: -badge-bg;
+    -fx-text-fill: white;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+    -fx-background-radius: 8;
+    -fx-padding: 1 6 1 6;
+}
+
+/* ---------------- Overlays ---------------- */
+
+.overlay-dim {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+}
+
+.countdown-label {
+    -fx-text-fill: -accent-active;
+    -fx-font-size: 96px;
+    -fx-font-weight: 800;
+}
+
+.dialog-box {
+    -fx-background-color: -dialog-bg;
+    -fx-border-color: -dialog-border;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-max-width: 360;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 20, 0, 0, 6);
+}
+
+.dialog-icon {
+    -fx-font-size: 46px;
+    -fx-text-fill: #F9A825;
+}
+
+.dialog-title {
+    -fx-font-size: 22px;
+    -fx-font-weight: 800;
+}
+
+.dialog-title-win {
+    -fx-text-fill: -accent-active;
+}
+
+.dialog-title-lose {
+    -fx-text-fill: -hit-bg;
+}
+
+.dialog-subtitle {
+    -fx-text-fill: -text-dim;
+    -fx-font-size: 13px;
+    -fx-text-alignment: center;
+}
+
+.dialog-button {
+    -fx-background-radius: 6;
+    -fx-padding: 9 22 9 22;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+.dialog-button-primary {
+    -fx-background-color: -accent-active;
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+}
+
+.dialog-button-primary:hover {
+    -fx-background-color: derive(#00897B, 15%);
+}
+
+.dialog-button-secondary {
+    -fx-background-color: white;
+    -fx-text-fill: -text-dim;
+    -fx-border-color: -border-light;
+    -fx-border-radius: 6;
+}
+
+.dialog-button-secondary:hover {
+    -fx-text-fill: -text-main;
+    -fx-border-color: -text-dim;
+}
+
+/* HIỆU ỨNG VÙNG NGẮM BẮN (AIM PREVIEW) */
+.cell-hover-aim {
+    -fx-background-color: rgba(0, 0, 0, 0.15) !important;
+    -fx-background-radius: 4px;
+}
