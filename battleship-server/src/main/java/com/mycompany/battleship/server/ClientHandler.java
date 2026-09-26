@@ -18,7 +18,6 @@ public class ClientHandler implements Runnable {
     private String loggedInUsername = null;
     private User currentUser = null;
     
-    // Save reference to opponent's thread when entering a match
     private ClientHandler opponent = null; 
 
     public ClientHandler(Socket socket) {
@@ -35,7 +34,6 @@ public class ClientHandler implements Runnable {
             
             String request;
             while ((request = in.readLine()) != null) {
-                // Hide password in Server logs for LOGIN and REGISTER commands
                 if (request.startsWith("LOGIN|") || request.startsWith("REGISTER|")) {
                     String[] tempParts = request.split("\\|");
                     if (tempParts.length >= 2) {
@@ -65,12 +63,15 @@ public class ClientHandler implements Runnable {
                         if (parts.length >= 2) handleCancelInvite(parts[1]);
                         break;
                     case "ACCEPT":
-                    case "INVITE_ACCEPT":    
+                    case "INVITE_ACCEPT":   
                         if (parts.length >= 2) handleAccept(parts[1]);
                         break;
                     case "REJECT":
-                    case "INVITE_REJECT":    
+                    case "INVITE_REJECT":   
                         if (parts.length >= 2) handleReject(parts[1]);
+                        break;
+                    case "SURRENDER":
+                        handleSurrender();
                         break;
                     default:
                         System.out.println("Unknown command: " + command);
@@ -86,27 +87,22 @@ public class ClientHandler implements Runnable {
                     new UserDAO().updateStatus(currentUser.getId(), "OFFLINE");
                 }
                 
-                // RESCUE OPPONENT: Handle if the player disconnects during a match
                 if (this.opponent != null) {
                     System.out.println("Rescuing " + this.opponent.loggedInUsername + " because the opponent disconnected.");
                     
-                    // Send command to the other Client to close the game board
                     this.opponent.sendMessage("OPPONENT_QUIT|Opponent disconnected. The match is canceled.");
                                      
-                    // Pull the remaining player back to ONLINE status
                     if (this.opponent.currentUser != null) {
                         new UserDAO().updateStatus(this.opponent.currentUser.getId(), "ONLINE");
                         this.opponent.currentUser.setStatus("ONLINE");
                     }
                     
-                    // Clear reference
                     this.opponent.opponent = null;
                     this.opponent = null;
                 }
                 
                 System.out.println(loggedInUsername + " has left. Remaining online users: " + BattleshipServer.onlineUsers.size());
                 
-                // BROADCAST: Instantly update the lobby
                 for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
                     client.handleListPlayers();
                 }
@@ -183,7 +179,6 @@ public class ClientHandler implements Runnable {
             
             String realStatus = u.getStatus();
             
-            // Filter out "ghost" states
             if (!BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
                 realStatus = "OFFLINE";
             }
@@ -276,6 +271,32 @@ public class ClientHandler implements Runnable {
         if (challengerHandler != null) {
             challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
             System.out.println(this.loggedInUsername + " rejected the invite from " + challengerUsername);
+        }
+    }
+    
+    private void handleSurrender() {
+        if (this.opponent != null) {
+            System.out.println(this.loggedInUsername + " has surrendered. Opponent " + this.opponent.loggedInUsername + " wins!");
+
+            this.sendMessage("MATCH_END|LOSE|SURRENDER");
+            this.opponent.sendMessage("MATCH_END|WIN|SURRENDER");
+
+            UserDAO userDAO = new UserDAO();
+            if (this.currentUser != null) {
+                userDAO.updateStatus(this.currentUser.getId(), "ONLINE");
+                this.currentUser.setStatus("ONLINE");
+            }
+            if (this.opponent.currentUser != null) {
+                userDAO.updateStatus(this.opponent.currentUser.getId(), "ONLINE");
+                this.opponent.currentUser.setStatus("ONLINE");
+            }
+
+            this.opponent.opponent = null;
+            this.opponent = null;
+
+            for (ClientHandler client : BattleshipServer.onlineUsers.values()) {
+                client.handleListPlayers();
+            }
         }
     }
     

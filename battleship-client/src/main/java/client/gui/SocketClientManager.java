@@ -7,10 +7,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.Socket;
 import javafx.application.Platform;
+import javafx.stage.Stage;
 
-/**
- * @author Thanh vien 4 - Client Lobby & JavaFX UI
- */
 public class SocketClientManager {
 
     public static final String SERVER_IP = "127.0.0.1";
@@ -23,6 +21,9 @@ public class SocketClientManager {
     public static LoginGUI loginScreen;
     public static RegisterGUI registerScreen;
     public static LobbyGUI lobbyScreen;
+    
+    public static GameRoomGUI gameRoomScreen; 
+    public static Stage gameStage;
 
     public static boolean ketNoiServer() {
         try {
@@ -56,17 +57,14 @@ public class SocketClientManager {
             out.newLine();
             out.flush();
             
-            // --- FIX BẢO MẬT: CHE MẬT KHẨU KHI IN RA CONSOLE ---
             String logContent = noiDung;
             if (noiDung.startsWith("LOGIN|") || noiDung.startsWith("REGISTER|")) {
                 String[] parts = noiDung.split("\\|");
                 if (parts.length >= 3) {
-                    // Giữ lại phần tử 0 (Lệnh) và phần tử 1 (Tên đăng nhập), che phần tử 2 (Mật khẩu)
                     logContent = parts[0] + "|" + parts[1] + "|***HIDDEN***";
                 }
             }
             System.out.println("[GUI] " + logContent);
-            // ---------------------------------------------------
             
         } catch (IOException e) {
             System.out.println("[LOI] Gui du lieu that bai: " + e.getMessage());
@@ -178,7 +176,6 @@ public class SocketClientManager {
                 });
                 break;
                 
-            // THÊM MỚI: Xử lý khi đối thủ bận hoặc offline
             case "INVITE_FAIL":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
@@ -191,7 +188,75 @@ public class SocketClientManager {
             case "MATCH_START":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        lobbyScreen.batDauTranDau(parts);
+                        lobbyScreen.batDauTranDau(parts); 
+                    }
+                    
+                    gameRoomScreen = new GameRoomGUI();
+                    gameStage = new Stage();
+                    
+                    // --- ĐOẠN THÊM MỚI: TRUYỀN TÊN THẬT VÀO GIAO DIỆN ---
+                    // Tên của mình lấy từ Lobby, tên đối thủ Server gửi về ở parts[2]
+                    String tenDoiThu = parts.length > 2 ? parts[2] : "Đối thủ";
+                    int diemCuaMinh = 0;
+                    try {
+                        diemCuaMinh = Integer.parseInt(LobbyGUI.currentScore);
+                    } catch (Exception ex) {}
+                    
+                    gameRoomScreen.setPlayerNames(LobbyGUI.currentUsername, tenDoiThu);
+                    gameRoomScreen.setPlayerScores(diemCuaMinh, 0); // (Điểm đối thủ để tạm 0 nếu Server chưa gửi)
+                    // ---------------------------------------------------
+                    
+                    gameRoomScreen.setOnExitGameClicked(() -> {
+                        guiTinNhan("SURRENDER");
+                        if (gameStage != null) {
+                            gameStage.close();
+                        }
+                        try {
+                            new LobbyGUI().start(new Stage());
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
+                    });
+                    
+                    try {
+                        gameRoomScreen.start(gameStage); 
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                });
+                break;
+                
+            // KHI NHẬN ĐƯỢC KẾT QUẢ VÁN ĐẤU (Kể cả người B nhận tin người A thoát)
+            case "MATCH_END":
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null) {
+                        String ketQua = parts.length > 1 ? parts[1] : "LOSE";
+                        String reason = parts.length > 2 ? parts[2] : ""; 
+                        boolean isWinner = "WIN".equals(ketQua);
+                        
+                        gameRoomScreen.showResultPopup(isWinner, reason, () -> {
+                            // Khi người B bấm "Về sảnh" hoặc "OK"
+                            if (gameStage != null) {
+                                gameStage.close();
+                            }
+                            try {
+                                new LobbyGUI().start(new Stage());
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
+                        }, null); 
+                    }
+                });
+                break;
+                
+            // Xử lý thêm trường hợp đối thủ tắt nóng ứng dụng (Bấm dấu X góc màn hình)
+            case "OPPONENT_QUIT":
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null) {
+                        gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
+                            if (gameStage != null) gameStage.close();
+                            try { new LobbyGUI().start(new Stage()); } catch (Exception ex) { ex.printStackTrace(); }
+                        }, null);
                     }
                 });
                 break;
