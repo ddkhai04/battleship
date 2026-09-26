@@ -13,7 +13,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <javafx.version>21.0.1</javafx.version>
-        <exec.mainClass>client.gui.SplashGUI</exec.mainClass>
+        <exec.mainClass>com.mycompany.battleship.client.gui.SplashGUI</exec.mainClass>
     </properties>
 
     <dependencies>
@@ -54,7 +54,7 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>client.gui.SplashGUI</mainClass>
+                    <mainClass>com.mycompany.battleship.client.gui.SplashGUI</mainClass>
                 </configuration>
             </plugin>
         </plugins>
