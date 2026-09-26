@@ -1,14 +1,21 @@
 package com.mycompany.battleship.client.gui;
 
-import javafx.application.Application;
+import com.mycompany.battleship.common.model.GameView;
+import com.mycompany.battleship.common.model.MissileType;
+import com.mycompany.battleship.common.model.Point;
+import com.mycompany.battleship.common.model.ShotResult;
 import javafx.animation.KeyFrame;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
+import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -19,25 +26,26 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.AudioClip;
 import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-// THƯ VIỆN ÂM THANH
-import javafx.scene.media.AudioClip;
-import java.net.URL;
-
 import java.io.File;
+import java.net.URL;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class GameRoomGUI extends Application {
 
-    public static final String SHIP_SIZE_2 = "ship-size-2";     
-    public static final String SHIP_SIZE_3_A = "ship-size-3-a"; 
-    public static final String SHIP_SIZE_3_B = "ship-size-3-b"; 
-    public static final String SHIP_SIZE_4 = "ship-size-4";     
-    public static final String SHIP_SIZE_5 = "ship-size-5";     
+    public static final String SHIP_SIZE_2 = "ship-size-2";
+    public static final String SHIP_SIZE_3_A = "ship-size-3-a";
+    public static final String SHIP_SIZE_3_B = "ship-size-3-b";
+    public static final String SHIP_SIZE_4 = "ship-size-4";
+    public static final String SHIP_SIZE_5 = "ship-size-5";
 
     private static final int GRID_SIZE = 10;
     private static final double CELL_SIZE = 36;
@@ -51,7 +59,7 @@ public class GameRoomGUI extends Application {
     private final StackPane[][] enemyCells = new StackPane[GRID_SIZE][GRID_SIZE];
 
     private Label timerLabel;
-    private Timeline turnTimer; // Bộ đếm thời gian
+    private Timeline turnTimer;
     private int currentSeconds = 45;
 
     private Label turnIndicatorLabel;
@@ -65,9 +73,16 @@ public class GameRoomGUI extends Application {
     private Button lobbyBtn;
     private Button rematchBtn;
 
+//    private final Map<String, Label> weaponBadges = new EnumMap<>(MissileType.class.getName().getClass().isEnum() ? null : null); // fallback
+    private final Map<String, Label> badgeMap = new java.util.HashMap<>();
+    private final Map<String, ToggleButton> buttonMap = new java.util.HashMap<>();
+
     private BiConsumer<Integer, Integer> onAttackCellClicked;
     private Consumer<String> onWeaponSelected;
     private Runnable onExitGameClicked;
+    private Runnable onRematchClicked;
+
+    private boolean isMyTurn = false;
 
     private void playSound(String fileName) {
         try {
@@ -113,11 +128,14 @@ public class GameRoomGUI extends Application {
         Scene scene = new Scene(rootStack, 1000, 680);
         scene.getStylesheets().add(resolveCssPath());
 
-        primaryStage.setTitle("Battleship - Phong choi");
+        primaryStage.setTitle("Battleship - " + player1Name + " vs " + player2Name);
         primaryStage.setScene(scene);
+        primaryStage.setOnCloseRequest(e -> {
+            if (onExitGameClicked != null) {
+                onExitGameClicked.run();
+            }
+        });
         primaryStage.show();
-
-        loadDemoPreviewState();
     }
 
     private String resolveCssPath() {
@@ -131,7 +149,7 @@ public class GameRoomGUI extends Application {
     private BorderPane createRootLayout() {
         BorderPane layout = new BorderPane();
         layout.getStyleClass().add("game-root");
-        layout.setTop(createTopBar()); 
+        layout.setTop(createTopBar());
         layout.setCenter(createBoardsArea());
         layout.setBottom(createInventoryBar());
         return layout;
@@ -141,33 +159,30 @@ public class GameRoomGUI extends Application {
         HBox top = new HBox();
         top.getStyleClass().add("top-bar");
         top.setAlignment(Pos.CENTER);
-        // Padding đẩy thanh tụt xuống để bảo vệ hình tròn
         top.setPadding(new Insets(24, 28, 14, 28));
 
-        // KHỐI 1: Bên trái (Ép cứng rộng 280px)
         HBox player1Box = createPlayerInfo(player1Name, player1Score, "avatar-color-1", true);
-        player1Box.setPrefWidth(280); 
+        player1Box.setPrefWidth(280);
         player1Box.setAlignment(Pos.CENTER_LEFT);
 
-        // KHỐI 2: Bên phải (Cũng ép cứng rộng 280px)
         HBox player2Box = createPlayerInfo(player2Name, player2Score, "avatar-color-2", false);
-        Button exitBtn = new Button("Thoát \u2716");
+        Button exitBtn = new Button("Thoát ✖");
         exitBtn.setStyle("-fx-background-color: #ff4d4f; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-cursor: hand;");
-        
+
         exitBtn.setOnAction(e -> {
-            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Xác nhận thoát");
             alert.setHeaderText("Bạn có chắc chắn muốn thoát trận đấu?");
             alert.setContentText("Nếu thoát, bạn sẽ bị xử thua ván này!");
 
-            javafx.scene.control.ButtonType btnXacNhan = new javafx.scene.control.ButtonType("Xác nhận");
-            javafx.scene.control.ButtonType btnHuy = new javafx.scene.control.ButtonType("Hủy", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+            ButtonType btnXacNhan = new ButtonType("Xác nhận");
+            ButtonType btnHuy = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
             alert.getButtonTypes().setAll(btnXacNhan, btnHuy);
 
             alert.showAndWait().ifPresent(type -> {
                 if (type == btnXacNhan) {
                     if (onExitGameClicked != null) {
-                        onExitGameClicked.run(); 
+                        onExitGameClicked.run();
                     } else {
                         Stage stage = (Stage) exitBtn.getScene().getWindow();
                         stage.close();
@@ -179,16 +194,14 @@ public class GameRoomGUI extends Application {
         HBox rightGroup = new HBox(20, player2Box, exitBtn);
         rightGroup.setPrefWidth(280);
         rightGroup.setAlignment(Pos.CENTER_RIGHT);
-        
-        // KHỐI 3: Đồng hồ (Chính giữa)
+
         StackPane timerCircle = createTimerCircle();
-        turnIndicatorLabel = new Label("Luot cua ban");
-        turnIndicatorLabel.getStyleClass().addAll("turn-indicator", "turn-indicator-active");
+        turnIndicatorLabel = new Label("Chờ trận đấu...");
+        turnIndicatorLabel.getStyleClass().addAll("turn-indicator", "turn-indicator-waiting");
 
         VBox centerBox = new VBox(8, timerCircle, turnIndicatorLabel);
         centerBox.setAlignment(Pos.CENTER);
 
-        // KHỐI 4: Vùng không gian đẩy giãn
         Region spacerLeft = new Region();
         Region spacerRight = new Region();
         HBox.setHgrow(spacerLeft, Priority.ALWAYS);
@@ -204,7 +217,7 @@ public class GameRoomGUI extends Application {
         StackPane avatar = createAvatar(name, avatarColorClass);
         Label nameLabel = new Label(name);
         nameLabel.getStyleClass().add("player-name");
-        Label scoreBadge = new Label("\u2605 " + score);
+        Label scoreBadge = new Label("★ " + score);
         scoreBadge.getStyleClass().add("score-badge");
         VBox textBox = new VBox(3, nameLabel, scoreBadge);
         textBox.setAlignment(isLeftPlayer ? Pos.CENTER_LEFT : Pos.CENTER_RIGHT);
@@ -237,10 +250,9 @@ public class GameRoomGUI extends Application {
         return timerPane;
     }
 
-    // BỘ ĐẾM THỜI GIAN 45s (Hiển thị UI)
-    public void startTurnTimer() {
+    public void startTurnTimer(int seconds) {
         if (turnTimer != null) turnTimer.stop();
-        currentSeconds = 45;
+        currentSeconds = seconds;
         setTimerSeconds(currentSeconds);
 
         turnTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
@@ -249,7 +261,6 @@ public class GameRoomGUI extends Application {
                 setTimerSeconds(currentSeconds);
             } else {
                 turnTimer.stop();
-                // Chỉ đếm đến 0 rồi dừng. Việc chuyển lượt sẽ do Server quyết định và báo về.
             }
         }));
         turnTimer.setCycleCount(Timeline.INDEFINITE);
@@ -272,7 +283,7 @@ public class GameRoomGUI extends Application {
     private VBox createFleetPanel() {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
-        Label header = new Label("Your boats");
+        Label header = new Label("Hạm đội của bạn");
         header.getStyleClass().addAll("board-header", "board-header-fleet");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -284,7 +295,7 @@ public class GameRoomGUI extends Application {
     private VBox createEnemyPanel() {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
-        Label header = new Label("Attack your opponent!");
+        Label header = new Label("Bàn cờ đối thủ");
         header.getStyleClass().addAll("board-header", "board-header-enemy");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -316,52 +327,61 @@ public class GameRoomGUI extends Application {
         cell.setMinSize(CELL_SIZE, CELL_SIZE);
         cell.setMaxSize(CELL_SIZE, CELL_SIZE);
         cell.getChildren().add(createWaterDot());
-        
+
         if (interactive) {
             cell.getStyleClass().add("cell-interactive");
             cell.setOnMouseClicked(e -> {
+                if (!isMyTurn) {
+                    playSound("miss.mp3");
+                    return;
+                }
                 if (onAttackCellClicked != null) {
-                    if (weaponGroup != null && weaponGroup.getSelectedToggle() != null) {
-                        String weapon = (String) weaponGroup.getSelectedToggle().getUserData();
-                        switch (weapon) {
-                            case "NUKE": playSound("fire_nuke.mp3"); break;
-                            case "CROSS": playSound("fire_cross.mp3"); break;
-                            case "CLUSTER": playSound("fire_cluster.mp3"); break;
-                            default: playSound("fire_normal.mp3"); break;
-                        }
+                    String weapon = getSelectedWeapon();
+                    switch (weapon) {
+                        case "NUCLEAR": playSound("fire_nuke.mp3"); break;
+                        case "BIG": playSound("fire_cross.mp3"); break;
+                        case "RAIN": playSound("fire_cluster.mp3"); break;
+                        default: playSound("fire_normal.mp3"); break;
                     }
                     onAttackCellClicked.accept(row, col);
                 }
             });
-            
+
             cell.setOnMouseEntered(e -> showAimPreview(row, col));
             cell.setOnMouseExited(e -> hideAimPreview());
         }
         return cell;
     }
 
+    public String getSelectedWeapon() {
+        if (weaponGroup != null && weaponGroup.getSelectedToggle() != null) {
+            return (String) weaponGroup.getSelectedToggle().getUserData();
+        }
+        return "SIMPLE";
+    }
+
     private void showAimPreview(int centerRow, int centerCol) {
-        if (weaponGroup == null || weaponGroup.getSelectedToggle() == null) return;
+        if (!isMyTurn || weaponGroup == null || weaponGroup.getSelectedToggle() == null) return;
         String weapon = (String) weaponGroup.getSelectedToggle().getUserData();
 
-        hideAimPreview(); 
+        hideAimPreview();
 
         int[][] offsets;
         switch (weapon) {
-            case "CROSS": 
-                offsets = new int[][]{{0,0}, {-1,0}, {1,0}, {0,-1}, {0,1}};
+            case "BIG":
+                offsets = new int[][]{{0, 0}, {-1, 0}, {1, 0}, {0, -1}, {0, 1}};
                 break;
-            case "NUKE": 
+            case "NUCLEAR":
                 offsets = new int[][]{
-                                      {-2, 0},
-                            {-1,-1},  {-1, 0},  {-1, 1},
-                  { 0,-2},  { 0,-1},  { 0, 0},  { 0, 1},  { 0, 2},
-                            { 1,-1},  { 1, 0},  { 1, 1},
-                                      { 2, 0}
+                        {-2, 0},
+                        {-1, -1}, {-1, 0}, {-1, 1},
+                        {0, -2}, {0, -1}, {0, 0}, {0, 1}, {0, 2},
+                        {1, -1}, {1, 0}, {1, 1},
+                        {2, 0}
                 };
                 break;
-            default: 
-                offsets = new int[][]{{0,0}};
+            default:
+                offsets = new int[][]{{0, 0}};
                 break;
         }
 
@@ -390,10 +410,12 @@ public class GameRoomGUI extends Application {
         bar.setAlignment(Pos.CENTER);
         bar.setPadding(new Insets(16, 20, 20, 20));
         weaponGroup = new ToggleGroup();
-        StackPane regular = createWeaponButton("NORMAL", "dan-thuong.png", "Đạn thường", -1, true);
-        StackPane cross = createWeaponButton("CROSS", "dan-chu-thap.png", "Đạn chữ thập", 2, false);
-        StackPane nuke = createWeaponButton("NUKE", "dan-nguyen-tu.png", "Đạn nguyên tử", 1, false);
-        StackPane cluster = createWeaponButton("CLUSTER", "dan-rai-rac.png", "Đạn rải rác", 1, false);
+
+        StackPane regular = createWeaponButton("SIMPLE", "dan-thuong.png", "Đạn thường", -1, true);
+        StackPane cross = createWeaponButton("BIG", "dan-chu-thap.png", "Đạn chữ thập", 2, false);
+        StackPane cluster = createWeaponButton("RAIN", "dan-rai-rac.png", "Đạn rải rác", 0, false);
+        StackPane nuke = createWeaponButton("NUCLEAR", "dan-nguyen-tu.png", "Đạn nguyên tử", 0, false);
+
         bar.getChildren().addAll(regular, cross, cluster, nuke);
         weaponGroup.selectedToggleProperty().addListener((obs, oldT, newT) -> {
             if (newT != null && onWeaponSelected != null) {
@@ -409,22 +431,27 @@ public class GameRoomGUI extends Application {
         btn.setUserData(weaponId);
         btn.getStyleClass().add("weapon-button");
         btn.setSelected(selected);
+
+        buttonMap.put(weaponId, btn);
+
         javafx.scene.image.ImageView iconView = new javafx.scene.image.ImageView();
         try {
             String imagePath = getClass().getResource("/" + imageFileName).toExternalForm();
             iconView.setImage(new javafx.scene.image.Image(imagePath));
-            iconView.setFitWidth(32); 
+            iconView.setFitWidth(32);
             iconView.setFitHeight(32);
-            iconView.setPreserveRatio(true); 
+            iconView.setPreserveRatio(true);
             iconView.setSmooth(false);
         } catch (Exception e) {
             System.out.println("Lỗi: Không tìm thấy ảnh " + imageFileName);
         }
+
         Label nameLabel = new Label(name);
         nameLabel.getStyleClass().add("weapon-name");
         VBox content = new VBox(4, iconView, nameLabel);
         content.setAlignment(Pos.CENTER);
         btn.setGraphic(content);
+
         StackPane wrapper = new StackPane(btn);
         if (count >= 0) {
             Label badge = new Label(String.valueOf(count));
@@ -432,6 +459,8 @@ public class GameRoomGUI extends Application {
             StackPane.setAlignment(badge, Pos.TOP_RIGHT);
             StackPane.setMargin(badge, new Insets(-6, -8, 0, 0));
             wrapper.getChildren().add(badge);
+            badgeMap.put(weaponId, badge);
+
             if (count == 0) {
                 btn.setDisable(true);
             }
@@ -450,28 +479,28 @@ public class GameRoomGUI extends Application {
         return overlay;
     }
 
-    public void showCountdownOverlay(Runnable onFinished) {
+    public void showCountdown(int seconds) {
         countdownOverlay.setVisible(true);
         countdownOverlay.setManaged(true);
-        Timeline timeline = new Timeline(
-                new KeyFrame(Duration.seconds(0), e -> setCountdownText("3")),
-                new KeyFrame(Duration.seconds(1), e -> setCountdownText("2")),
-                new KeyFrame(Duration.seconds(2), e -> setCountdownText("1")),
-                new KeyFrame(Duration.seconds(3), e -> setCountdownText("Bat dau!")),
-                new KeyFrame(Duration.seconds(3.6), e -> {
-                    countdownOverlay.setVisible(false);
-                    countdownOverlay.setManaged(false);
-                    if (onFinished != null) {
-                        onFinished.run();
-                    }
-                })
-        );
-        timeline.play();
+        countdownLabel.setText(seconds > 0 ? String.valueOf(seconds) : "Chiến đấu!");
+        playPulse(countdownLabel);
+
+        // Khi đếm tới 1, hẹn 1 giây sau hiện "Chiến đấu!" rồi biến mất hoàn toàn
+        if (seconds <= 1) {
+            Timeline hideTimeline = new Timeline(
+                    new KeyFrame(Duration.seconds(1), e -> {
+                        countdownLabel.setText("Chiến đấu!");
+                        playPulse(countdownLabel);
+                    }),
+                    new KeyFrame(Duration.millis(1600), e -> hideCountdown())
+            );
+            hideTimeline.play();
+        }
     }
 
-    private void setCountdownText(String text) {
-        countdownLabel.setText(text);
-        playPulse(countdownLabel);
+    public void hideCountdown() {
+        countdownOverlay.setVisible(false);
+        countdownOverlay.setManaged(false);
     }
 
     private void playPulse(Node node) {
@@ -498,9 +527,9 @@ public class GameRoomGUI extends Application {
         resultSubtitle.setWrapText(true);
         resultSubtitle.setAlignment(Pos.CENTER);
 
-        lobbyBtn = new Button("Ve sanh");
+        lobbyBtn = new Button("Về sảnh");
         lobbyBtn.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
-        rematchBtn = new Button("Tai dau");
+        rematchBtn = new Button("Tái đấu");
         rematchBtn.getStyleClass().addAll("dialog-button", "dialog-button-primary");
 
         HBox buttonBar = new HBox(12, lobbyBtn, rematchBtn);
@@ -518,31 +547,37 @@ public class GameRoomGUI extends Application {
 
     public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLobby, Runnable onRematch) {
         resultTitle.getStyleClass().removeAll("dialog-title-win", "dialog-title-lose");
-        stopTurnTimer(); // Dừng đồng hồ khi có kết quả
+        stopTurnTimer();
 
         if (isWinner) {
-            resultIcon.setText("\u2605");
+            resultIcon.setText("★");
             resultTitle.setText("Chiến thắng!");
             resultTitle.getStyleClass().add("dialog-title-win");
-            
-            if ("SURRENDER".equals(reason)) {
+            if ("SURRENDER".equals(reason) || "LEFT".equals(reason)) {
                 resultSubtitle.setText("Đối thủ đã bỏ chạy. Bạn được xử thắng!");
                 rematchBtn.setVisible(false);
                 rematchBtn.setManaged(false);
+            } else if ("TIMEOUT".equals(reason)) {
+                resultSubtitle.setText("Đối thủ hết thời gian suy nghĩ!");
+                rematchBtn.setVisible(true);
+                rematchBtn.setManaged(true);
             } else {
                 resultSubtitle.setText("Bạn đã đánh chìm toàn bộ hạm đội đối phương.");
                 rematchBtn.setVisible(true);
                 rematchBtn.setManaged(true);
             }
         } else {
-            resultIcon.setText("\u2716");
+            resultIcon.setText("✖");
             resultTitle.setText("Thất bại");
             resultTitle.getStyleClass().add("dialog-title-lose");
-            
-            if ("SURRENDER".equals(reason)) {
+            if ("SURRENDER".equals(reason) || "LEFT".equals(reason)) {
                 resultSubtitle.setText("Bạn đã đầu hàng và rời trận đấu.");
                 rematchBtn.setVisible(false);
                 rematchBtn.setManaged(false);
+            } else if ("TIMEOUT".equals(reason)) {
+                resultSubtitle.setText("Bạn đã hết thời gian suy nghĩ!");
+                rematchBtn.setVisible(true);
+                rematchBtn.setManaged(true);
             } else {
                 resultSubtitle.setText("Hạm đội của bạn đã bị đánh chìm hoàn toàn.");
                 rematchBtn.setVisible(true);
@@ -555,7 +590,8 @@ public class GameRoomGUI extends Application {
             if (onBackToLobby != null) onBackToLobby.run();
         });
         rematchBtn.setOnAction(e -> {
-            hideResultPopup();
+            rematchBtn.setDisable(true);
+            rematchBtn.setText("Đang chờ...");
             if (onRematch != null) onRematch.run();
         });
 
@@ -580,36 +616,11 @@ public class GameRoomGUI extends Application {
         this.onExitGameClicked = listener;
     }
 
-    public void placeShip(int[][] coordinates, String shipType) {
-        int length = coordinates.length;
-        if (length == 0) return;
-
-        boolean isHorizontal = true;
-        if (length > 1) {
-            isHorizontal = (coordinates[0][0] == coordinates[1][0]);
-        }
-
-        for (int i = 0; i < length; i++) {
-            int row = coordinates[i][0];
-            int col = coordinates[i][1];
-            
-            String shapeClass;
-            if (i == 0) {
-                shapeClass = isHorizontal ? "ship-horizontal-head" : "ship-vertical-head";
-            } else if (i == length - 1) {
-                shapeClass = isHorizontal ? "ship-horizontal-tail" : "ship-vertical-tail";
-            } else {
-                shapeClass = isHorizontal ? "ship-horizontal-body" : "ship-vertical-body";
-            }
-            setFleetCellState(row, col, "ship", shipType, shapeClass);
-        }
+    public void setOnRematchClicked(Runnable listener) {
+        this.onRematchClicked = listener;
     }
 
     public void setFleetCellState(int row, int col, String state, String shipType) {
-        setFleetCellState(row, col, state, shipType, null);
-    }
-
-    public void setFleetCellState(int row, int col, String state, String shipType, String shapeClass) {
         StackPane cell = fleetCells[row][col];
         clearCellStateClasses(cell);
         cell.getChildren().clear();
@@ -618,14 +629,9 @@ public class GameRoomGUI extends Application {
             cell.getStyleClass().add("water-cell");
             cell.getChildren().add(createWaterDot());
         } else {
-            cell.getStyleClass().addAll("cell-ship", shipType);
-            
-            if (shapeClass != null) {
-                cell.getStyleClass().add(shapeClass);
-            } else {
-                cell.setStyle("-fx-background-radius: 12;"); 
-            }
-            
+            cell.getStyleClass().addAll("cell-ship", shipType != null ? shipType : SHIP_SIZE_3_A);
+            cell.setStyle("-fx-background-radius: 6;");
+
             if (state.equals("hit")) {
                 cell.getChildren().add(createHitMark());
             } else if (state.equals("sunk")) {
@@ -642,37 +648,30 @@ public class GameRoomGUI extends Application {
         if ("hit".equals(state)) {
             cell.getStyleClass().add("water-cell");
             cell.getChildren().add(createHitMark());
-            playSound("hit.mp3"); 
-            
+            playSound("hit.mp3");
         } else if ("sunk".equals(state)) {
-            cell.getStyleClass().addAll("cell-ship", shipType);
+            cell.getStyleClass().addAll("cell-ship", shipType != null ? shipType : SHIP_SIZE_3_B);
             cell.getChildren().add(createSunkMark());
-            playSound("sunk.mp3"); 
-            
+            playSound("sunk.mp3");
         } else if ("miss".equals(state)) {
             cell.getStyleClass().add("water-cell");
             cell.getChildren().add(createMissDot());
-            playSound("miss.mp3"); 
-            
+            playSound("miss.mp3");
         } else if ("gift".equals(state)) {
-            // HIỆU ỨNG NHẶT HỘP QUÀ
             cell.getStyleClass().add("water-cell");
             cell.getChildren().add(createGiftMark());
-            playSound("gift.mp3"); // Đảm bảo bạn tải âm thanh gift.mp3 vào resources
-            
+            playSound("gift.mp3");
         } else {
-            cell.getStyleClass().add("water-cell");
+            cell.getStyleClass().addAll("water-cell", "cell-interactive");
             cell.getChildren().add(createWaterDot());
         }
     }
 
     private void clearCellStateClasses(StackPane cell) {
-        cell.setStyle(""); 
+        cell.setStyle("");
         cell.getStyleClass().removeAll("water-cell", "cell-ship", "cell-hit",
                 SHIP_SIZE_2, SHIP_SIZE_3_A, SHIP_SIZE_3_B, SHIP_SIZE_4, SHIP_SIZE_5,
-                "ship-horizontal-head", "ship-horizontal-body", "ship-horizontal-tail",
-                "ship-vertical-head", "ship-vertical-body", "ship-vertical-tail",
-                "cell-hover-aim"); 
+                "cell-hover-aim", "cell-interactive");
     }
 
     private Circle createWaterDot() {
@@ -691,11 +690,9 @@ public class GameRoomGUI extends Application {
         javafx.scene.image.ImageView fire = new javafx.scene.image.ImageView();
         try {
             fire.setImage(new javafx.scene.image.Image(getClass().getResource("/fire2.gif").toExternalForm()));
-            fire.setFitWidth(34); 
+            fire.setFitWidth(34);
             fire.setFitHeight(34);
-        } catch (Exception e) {
-            System.out.println("Loi load fire.gif");
-        }
+        } catch (Exception ignored) {}
         return fire;
     }
 
@@ -703,40 +700,38 @@ public class GameRoomGUI extends Application {
         javafx.scene.image.ImageView skull = new javafx.scene.image.ImageView();
         try {
             skull.setImage(new javafx.scene.image.Image(getClass().getResource("/skull.png").toExternalForm()));
-            skull.setFitWidth(24); 
+            skull.setFitWidth(24);
             skull.setFitHeight(24);
-        } catch (Exception e) {
-            System.out.println("Loi load skull.png");
-        }
+        } catch (Exception ignored) {}
         return skull;
     }
 
-    // TẠO HÌNH ẢNH HỘP QUÀ
     private javafx.scene.image.ImageView createGiftMark() {
         javafx.scene.image.ImageView gift = new javafx.scene.image.ImageView();
         try {
             gift.setImage(new javafx.scene.image.Image(getClass().getResource("/gift.png").toExternalForm()));
-            gift.setFitWidth(28); 
+            gift.setFitWidth(28);
             gift.setFitHeight(28);
-            gift.setSmooth(false); 
-        } catch (Exception e) {
-            System.out.println("Loi load gift.png");
-        }
+            gift.setSmooth(false);
+        } catch (Exception ignored) {}
         return gift;
     }
 
     public void setTurnIndicator(boolean isMyTurn) {
+        this.isMyTurn = isMyTurn;
+        hideCountdown(); // Đảm bảo tắt màn che mờ ngay khi vào ván
+
         turnIndicatorLabel.getStyleClass().removeAll("turn-indicator-active", "turn-indicator-waiting");
         if (isMyTurn) {
-            turnIndicatorLabel.setText("Luot cua ban");
+            turnIndicatorLabel.setText("Lượt của bạn");
             turnIndicatorLabel.getStyleClass().add("turn-indicator-active");
-            startTurnTimer(); // Reset timer khi tới lượt
         } else {
-            turnIndicatorLabel.setText("Luot doi thu");
+            turnIndicatorLabel.setText("Lượt đối thủ");
             turnIndicatorLabel.getStyleClass().add("turn-indicator-waiting");
-            stopTurnTimer(); // Dừng timer khi hết lượt
-            setTimerSeconds(45);
         }
+
+        // Bật đếm ngược 45s cho CẢ HAI BÊN để người chờ cũng thấy thời gian trôi
+        startTurnTimer(45);
     }
 
     public void setTimerSeconds(int seconds) {
@@ -750,31 +745,117 @@ public class GameRoomGUI extends Application {
         }
     }
 
-    private void loadDemoPreviewState() {
-        placeShip(new int[][]{{1, 1}, {2, 1}}, SHIP_SIZE_2);                                   
-        placeShip(new int[][]{{1, 4}, {1, 5}, {1, 6}}, SHIP_SIZE_3_A);                          
-        placeShip(new int[][]{{3, 6}, {3, 7}, {3, 8}}, SHIP_SIZE_3_B);                          
-        placeShip(new int[][]{{4, 0}, {5, 0}, {6, 0}, {7, 0}}, SHIP_SIZE_4);                    
-        placeShip(new int[][]{{8, 1}, {8, 2}, {8, 3}, {8, 4}, {8, 5}}, SHIP_SIZE_5);            
+    // ĐỒNG BỘ TOÀN BỘ BÀN CỜ VÀ ĐẠN TỪ SERVER
+    public void renderGameView(GameView view) {
+        if (view == null) return;
 
-        setFleetCellState(1, 4, "sunk", SHIP_SIZE_3_A); 
-        setFleetCellState(1, 5, "sunk", SHIP_SIZE_3_A);
-        setFleetCellState(1, 6, "sunk", SHIP_SIZE_3_A); 
+        // 1. Bàn cờ cá nhân: '.' = nước, 'S' = tàu, 'X' = trúng, 'o' = trượt
+        char[][] own = view.ownGrid;
+        if (own != null) {
+            for (int r = 0; r < GRID_SIZE; r++) {
+                for (int c = 0; c < GRID_SIZE; c++) {
+                    char ch = own[r][c];
+                    StackPane cell = fleetCells[r][c];
+                    clearCellStateClasses(cell);
+                    cell.getChildren().clear();
 
-        setEnemyCellState(2, 3, "miss", null);
-        setEnemyCellState(6, 7, "miss", null);
-        setEnemyCellState(4, 4, "hit", null);
-        setEnemyCellState(8, 2, "hit", null);
-        setEnemyCellState(5, 6, "sunk", SHIP_SIZE_3_B);
-        setEnemyCellState(5, 7, "sunk", SHIP_SIZE_3_B);
-        setEnemyCellState(5, 8, "sunk", SHIP_SIZE_3_B);
-        
-        // Demo ô hộp quà
-        setEnemyCellState(7, 4, "gift", null); 
+                    if (ch == 'S') {
+                        cell.getStyleClass().addAll("cell-ship", SHIP_SIZE_3_A);
+                        cell.setStyle("-fx-background-radius: 6;");
+                    } else if (ch == 'X') {
+                        cell.getStyleClass().addAll("cell-ship", SHIP_SIZE_3_A);
+                        cell.getChildren().add(createHitMark());
+                    } else if (ch == 'o') {
+                        cell.getStyleClass().add("water-cell");
+                        cell.getChildren().add(createMissDot());
+                    } else {
+                        cell.getStyleClass().add("water-cell");
+                        cell.getChildren().add(createWaterDot());
+                    }
+                }
+            }
+        }
 
-        setFleetCellState(1, 1, "hit", SHIP_SIZE_2);
-        
-        setTurnIndicator(true);
+        // 2. Bàn cờ đối thủ: '.' = chưa bắn, 'X' = trúng, 'o' = trượt, '?' = hộp quà
+        char[][] enemy = view.enemyGrid;
+        if (enemy != null) {
+            for (int r = 0; r < GRID_SIZE; r++) {
+                for (int c = 0; c < GRID_SIZE; c++) {
+                    char ch = enemy[r][c];
+                    StackPane cell = enemyCells[r][c];
+                    clearCellStateClasses(cell);
+                    cell.getChildren().clear();
+
+                    if (ch == 'X') {
+                        cell.getStyleClass().add("water-cell");
+                        cell.getChildren().add(createHitMark());
+                    } else if (ch == 'o') {
+                        cell.getStyleClass().add("water-cell");
+                        cell.getChildren().add(createMissDot());
+                    } else if (ch == '?') {
+                        cell.getStyleClass().add("water-cell");
+                        cell.getChildren().add(createGiftMark());
+                    } else {
+                        cell.getStyleClass().addAll("water-cell", "cell-interactive");
+                        cell.getChildren().add(createWaterDot());
+                    }
+                }
+            }
+        }
+
+        // 3. Đánh dấu các tàu đối thủ đã bị đánh chìm
+        if (view.sunkEnemyShips != null) {
+            for (List<Point> shipCells : view.sunkEnemyShips) {
+                for (Point p : shipCells) {
+                    StackPane cell = enemyCells[p.getRow()][p.getCol()];
+                    cell.getChildren().clear();
+                    cell.getStyleClass().add("cell-ship");
+                    cell.getChildren().add(createSunkMark());
+                }
+            }
+        }
+
+        // 4. Cập nhật kho đạn
+        if (view.inventory != null) {
+            for (Map.Entry<MissileType, Integer> entry : view.inventory.entrySet()) {
+                String typeName = entry.getKey().name();
+                int count = entry.getValue();
+
+                Label badge = badgeMap.get(typeName);
+                ToggleButton btn = buttonMap.get(typeName);
+
+                if (badge != null) {
+                    badge.setText(String.valueOf(count));
+                }
+                if (btn != null) {
+                    btn.setDisable(count <= 0);
+                    if (count <= 0 && btn.isSelected()) {
+                        buttonMap.get("SIMPLE").setSelected(true);
+                    }
+                }
+            }
+        }
+    }
+
+    // CẬP NHẬT KẾT QUẢ PHÁT BẮN
+    public void applyShotResult(ShotResult result) {
+        if (result == null) return;
+
+        if (result.isDirectHit()) {
+            playSound("hit.mp3");
+        } else {
+            playSound("miss.mp3");
+        }
+
+        if (result.getSunkShips() != null && !result.getSunkShips().isEmpty()) {
+            playSound("sunk.mp3");
+        }
+
+        for (ShotResult.CellResult cell : result.getCells()) {
+            if (cell.isMysteryCollected()) {
+                playSound("gift.mp3");
+            }
+        }
     }
 
     public static void main(String[] args) {
