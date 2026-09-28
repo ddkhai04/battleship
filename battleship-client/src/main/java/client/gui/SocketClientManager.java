@@ -13,7 +13,7 @@ import javafx.application.Platform;
  */
 public class SocketClientManager {
 
-    public static final String SERVER_IP = "127.0.0.1";
+    public static final String SERVER_IP = "26.242.14.255";
     public static final int SERVER_PORT = 2209;
 
     private static Socket socket;
