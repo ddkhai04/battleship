@@ -621,20 +621,30 @@ public class GameRoomGUI extends Application {
     }
 
     public void setFleetCellState(int row, int col, String state, String shipType) {
+        setFleetCellState(row, col, state, shipType, null);
+    }
+
+    public void setFleetCellState(int row, int col, String state, String shipType, String shapeClass) {
         StackPane cell = fleetCells[row][col];
         clearCellStateClasses(cell);
         cell.getChildren().clear();
 
-        if (state.equals("empty")) {
+        if ("empty".equals(state)) {
             cell.getStyleClass().add("water-cell");
             cell.getChildren().add(createWaterDot());
         } else {
             cell.getStyleClass().addAll("cell-ship", shipType != null ? shipType : SHIP_SIZE_3_A);
-            cell.setStyle("-fx-background-radius: 6;");
+            
+            // Nhận diện đầu / thân / đuôi bo tròn theo CSS
+            if (shapeClass != null) {
+                cell.getStyleClass().add(shapeClass);
+            } else {
+                cell.setStyle("-fx-background-radius: 6;");
+            }
 
-            if (state.equals("hit")) {
+            if ("hit".equals(state)) {
                 cell.getChildren().add(createHitMark());
-            } else if (state.equals("sunk")) {
+            } else if ("sunk".equals(state)) {
                 cell.getChildren().add(createSunkMark());
             }
         }
@@ -746,37 +756,141 @@ public class GameRoomGUI extends Application {
     }
 
     // ĐỒNG BỘ TOÀN BỘ BÀN CỜ VÀ ĐẠN TỪ SERVER
+
     public void renderGameView(GameView view) {
         if (view == null) return;
 
-        // 1. Bàn cờ cá nhân: '.' = nước, 'S' = tàu, 'X' = trúng, 'o' = trượt
+        // =========================================================================
+        // 1. CẬP NHẬT BÀN CỜ CÁ NHÂN (HẠM ĐỘI CỦA BẠN - BÊN PHÍA MÌNH)
+        // =========================================================================
         char[][] own = view.ownGrid;
         if (own != null) {
+            // Bước 1.1: Vẽ các ô nước và ô đối thủ bắn trượt
             for (int r = 0; r < GRID_SIZE; r++) {
                 for (int c = 0; c < GRID_SIZE; c++) {
                     char ch = own[r][c];
-                    StackPane cell = fleetCells[r][c];
-                    clearCellStateClasses(cell);
-                    cell.getChildren().clear();
-
-                    if (ch == 'S') {
-                        cell.getStyleClass().addAll("cell-ship", SHIP_SIZE_3_A);
-                        cell.setStyle("-fx-background-radius: 6;");
-                    } else if (ch == 'X') {
-                        cell.getStyleClass().addAll("cell-ship", SHIP_SIZE_3_A);
-                        cell.getChildren().add(createHitMark());
-                    } else if (ch == 'o') {
+                    if (ch == 'o') {
+                        StackPane cell = fleetCells[r][c];
+                        clearCellStateClasses(cell);
+                        cell.getChildren().clear();
                         cell.getStyleClass().add("water-cell");
                         cell.getChildren().add(createMissDot());
-                    } else {
+                    } else if (ch != 'S' && ch != 'X') {
+                        StackPane cell = fleetCells[r][c];
+                        clearCellStateClasses(cell);
+                        cell.getChildren().clear();
                         cell.getStyleClass().add("water-cell");
                         cell.getChildren().add(createWaterDot());
                     }
                 }
             }
+
+            // Bước 1.2: Gom nhóm các ô liền kề để nhận diện 5 con tàu
+            boolean[][] visited = new boolean[GRID_SIZE][GRID_SIZE];
+            java.util.List<java.util.List<int[]>> ships = new java.util.ArrayList<>();
+
+            for (int r = 0; r < GRID_SIZE; r++) {
+                for (int c = 0; c < GRID_SIZE; c++) {
+                    char ch = own[r][c];
+                    if ((ch == 'S' || ch == 'X') && !visited[r][c]) {
+                        java.util.List<int[]> comp = new java.util.ArrayList<>();
+                        java.util.Queue<int[]> queue = new java.util.LinkedList<>();
+                        queue.add(new int[]{r, c});
+                        visited[r][c] = true;
+
+                        while (!queue.isEmpty()) {
+                            int[] cur = queue.poll();
+                            comp.add(cur);
+                            int[][] dirs = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+                            for (int[] d : dirs) {
+                                int nr = cur[0] + d[0];
+                                int nc = cur[1] + d[1];
+                                if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                                    char nch = own[nr][nc];
+                                    if ((nch == 'S' || nch == 'X') && !visited[nr][nc]) {
+                                        visited[nr][nc] = true;
+                                        queue.add(new int[]{nr, nc});
+                                    }
+                                }
+                            }
+                        }
+                        ships.add(comp);
+                    }
+                }
+            }
+
+            // Bước 1.3: Sắp xếp theo chiều dài giảm dần: 5, 4, 3, 3, 2
+            ships.sort((a, b) -> Integer.compare(b.size(), a.size()));
+
+            boolean hasAssigned3A = false;
+            for (java.util.List<int[]> shipCellsList : ships) {
+                int len = shipCellsList.size();
+                String shipType;
+                if (len == 5) {
+                    shipType = SHIP_SIZE_5;
+                } else if (len == 4) {
+                    shipType = SHIP_SIZE_4;
+                } else if (len == 3) {
+                    if (!hasAssigned3A) {
+                        shipType = SHIP_SIZE_3_A;
+                        hasAssigned3A = true;
+                    } else {
+                        shipType = SHIP_SIZE_3_B;
+                    }
+                } else if (len == 2) {
+                    shipType = SHIP_SIZE_2;
+                } else {
+                    shipType = SHIP_SIZE_3_A;
+                }
+
+                // KIỂM TRA: Toàn bộ các ô của tàu này có đều bị bắn trúng ('X') hay không
+                boolean isShipSunk = true;
+                for (int[] p : shipCellsList) {
+                    if (own[p[0]][p[1]] != 'X') {
+                        isShipSunk = false;
+                        break;
+                    }
+                }
+
+                // Sắp xếp toạ độ để phân định đầu tàu (head) và đuôi tàu (tail)
+                shipCellsList.sort((a, b) -> (a[0] == b[0]) ? Integer.compare(a[1], b[1]) : Integer.compare(a[0], b[0]));
+                boolean isHorizontal = (len > 1 && shipCellsList.get(0)[0] == shipCellsList.get(1)[0]);
+
+                for (int i = 0; i < len; i++) {
+                    int[] p = shipCellsList.get(i);
+                    int r = p[0];
+                    int c = p[1];
+                    char ch = own[r][c];
+
+                    String shapeClass;
+                    if (len == 1) {
+                        shapeClass = null;
+                    } else if (i == 0) {
+                        shapeClass = isHorizontal ? "ship-horizontal-head" : "ship-vertical-head";
+                    } else if (i == len - 1) {
+                        shapeClass = isHorizontal ? "ship-horizontal-tail" : "ship-vertical-tail";
+                    } else {
+                        shapeClass = isHorizontal ? "ship-horizontal-body" : "ship-vertical-body";
+                    }
+
+                    // NẾU TÀU ĐÃ CHÌM HẾT -> HIỆN ĐẦU LÂU ("sunk")
+                    // NẾU CHỈ MỚI TRÚNG 1 VÀI Ô -> HIỆN ĐỐM LỬA ("hit")
+                    // NẾU CHƯA BỊ BẮN -> THÂN TÀU NGUYÊN VẸN ("ship")
+                    String state;
+                    if (ch == 'X') {
+                        state = isShipSunk ? "sunk" : "hit";
+                    } else {
+                        state = "ship";
+                    }
+
+                    setFleetCellState(r, c, state, shipType, shapeClass);
+                }
+            }
         }
 
-        // 2. Bàn cờ đối thủ: '.' = chưa bắn, 'X' = trúng, 'o' = trượt, '?' = hộp quà
+        // =========================================================================
+        // 2. CẬP NHẬT BÀN CỜ ĐỐI THỦ (BÊN PHẢI)
+        // =========================================================================
         char[][] enemy = view.enemyGrid;
         if (enemy != null) {
             for (int r = 0; r < GRID_SIZE; r++) {
@@ -803,19 +917,52 @@ public class GameRoomGUI extends Application {
             }
         }
 
-        // 3. Đánh dấu các tàu đối thủ đã bị đánh chìm
+        // =========================================================================
+        // 3. HIỆN ĐẦU LÂU LÊN TÀU ĐỐI THỦ KHI BỊ BẮN CHÌM HOÀN TOÀN
+        // =========================================================================
         if (view.sunkEnemyShips != null) {
             for (List<Point> shipCells : view.sunkEnemyShips) {
-                for (Point p : shipCells) {
+                int len = shipCells.size();
+                String sType = SHIP_SIZE_3_A;
+                if (len == 5) sType = SHIP_SIZE_5;
+                else if (len == 4) sType = SHIP_SIZE_4;
+                else if (len == 2) sType = SHIP_SIZE_2;
+
+                java.util.List<Point> sortedCells = new java.util.ArrayList<>(shipCells);
+                sortedCells.sort((a, b) -> (a.getRow() == b.getRow()) ? Integer.compare(a.getCol(), b.getCol()) : Integer.compare(a.getRow(), b.getRow()));
+                boolean isHorizontal = (len > 1 && sortedCells.get(0).getRow() == sortedCells.get(1).getRow());
+
+                for (int i = 0; i < len; i++) {
+                    Point p = sortedCells.get(i);
                     StackPane cell = enemyCells[p.getRow()][p.getCol()];
+                    clearCellStateClasses(cell);
                     cell.getChildren().clear();
-                    cell.getStyleClass().add("cell-ship");
+
+                    String shapeClass;
+                    if (len == 1) {
+                        shapeClass = null;
+                    } else if (i == 0) {
+                        shapeClass = isHorizontal ? "ship-horizontal-head" : "ship-vertical-head";
+                    } else if (i == len - 1) {
+                        shapeClass = isHorizontal ? "ship-horizontal-tail" : "ship-vertical-tail";
+                    } else {
+                        shapeClass = isHorizontal ? "ship-horizontal-body" : "ship-vertical-body";
+                    }
+
+                    cell.getStyleClass().addAll("cell-ship", sType);
+                    if (shapeClass != null) {
+                        cell.getStyleClass().add(shapeClass);
+                    } else {
+                        cell.setStyle("-fx-background-radius: 6;");
+                    }
                     cell.getChildren().add(createSunkMark());
                 }
             }
         }
 
-        // 4. Cập nhật kho đạn
+        // =========================================================================
+        // 4. CẬP NHẬT KHO ĐẠN
+        // =========================================================================
         if (view.inventory != null) {
             for (Map.Entry<MissileType, Integer> entry : view.inventory.entrySet()) {
                 String typeName = entry.getKey().name();
@@ -836,7 +983,6 @@ public class GameRoomGUI extends Application {
             }
         }
     }
-
     // CẬP NHẬT KẾT QUẢ PHÁT BẮN
     public void applyShotResult(ShotResult result) {
         if (result == null) return;
