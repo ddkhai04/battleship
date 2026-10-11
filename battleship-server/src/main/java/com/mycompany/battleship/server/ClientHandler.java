@@ -101,6 +101,9 @@ public class ClientHandler implements Runnable {
                     case "REMATCH":
                         handleRematch();
                         break;
+                    case "REJECT_REMATCH":
+                        handleRejectRematch();
+                        break;
                     case "SURRENDER":
                     case "LEAVE_MATCH":
                         handleSurrender();
@@ -413,4 +416,26 @@ public class ClientHandler implements Runnable {
         }
         out.println(sb.toString());
     }
+    
+    private void handleRejectRematch() {
+        if (this.loggedInUsername == null) return;
+        
+        // Tìm phòng chơi hiện tại của người dùng
+        GameRoom room = BattleshipServer.gameManager.findByPlayer(this.loggedInUsername);
+        
+        if (room != null) {
+            // Xác định tên người đối thủ còn lại trong phòng dựa vào inviter và invitee của GameRoom
+            String opponent = room.getInviterId().equals(this.loggedInUsername) ? room.getInviteeId() : room.getInviterId();
+            
+            ClientHandler oppHandler = BattleshipServer.onlineUsers.get(opponent);
+            if (oppHandler != null) {
+                // Báo cho đối thủ biết là đã bị từ chối tái đấu
+                oppHandler.sendMessage("REMATCH_DECLINED|");
+            }
+            
+            // Cho người chơi rời phòng
+            room.leave(this.loggedInUsername);
+        }
+    }
+    
 }
