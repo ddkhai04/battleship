@@ -66,6 +66,12 @@ public class ClientHandler implements Runnable {
                     case "LIST_PLAYERS":
                         handleListPlayers();
                         break;
+                    case "LEADERBOARD":
+                        handleLeaderboard();
+                        break;
+                    case "MATCH_HISTORY":
+                        handleMatchHistory();
+                        break;   
                     case "INVITE":
                         if (parts.length >= 2) handleInvite(parts[1]);
                         break;
@@ -343,5 +349,68 @@ public class ClientHandler implements Runnable {
         if (out != null) {
             out.println(message);
         }
+    }
+    
+    private void handleLeaderboard() {
+        com.mycompany.battleship.server.dao.UserDAO userDAO = new com.mycompany.battleship.server.dao.UserDAO();
+        java.util.List<com.mycompany.battleship.common.model.UserDTO> topPlayers = userDAO.getLeaderboard(50); 
+        
+        if (topPlayers.isEmpty()) {
+            out.println("RANK_LIST|");
+            return;
+        }
+        
+        StringBuilder sb = new StringBuilder("RANK_LIST|");
+        int rank = 1;
+        for (int i = 0; i < topPlayers.size(); i++) {
+            com.mycompany.battleship.common.model.UserDTO u = topPlayers.get(i);
+            sb.append(rank).append(",")
+              .append(u.getNickname()).append(",")
+              .append(u.getWins()).append(",") 
+              .append(u.getLosses()).append(",")
+              .append(u.getScore());
+              
+            if (i < topPlayers.size() - 1) {
+                sb.append(";");
+            }
+            rank++;
+        }
+        out.println(sb.toString());
+    }
+
+    private void handleMatchHistory() {
+        if (this.currentUser == null) {
+            out.println("HISTORY_LIST|");
+            return;
+        }
+        
+        com.mycompany.battleship.server.dao.MatchDAO matchDAO = new com.mycompany.battleship.server.dao.MatchDAO();
+        java.util.List<com.mycompany.battleship.common.model.MatchHistoryDTO> historyList = matchDAO.getMatchHistory(this.currentUser.getId());
+        
+        if (historyList.isEmpty()) {
+            out.println("HISTORY_LIST|");
+            return;
+        }
+        
+        StringBuilder sb = new StringBuilder("HISTORY_LIST|");
+        for (int i = 0; i < historyList.size(); i++) {
+            com.mycompany.battleship.common.model.MatchHistoryDTO dto = historyList.get(i);
+            
+            String timeStr = "";
+            if(dto.getPlayedAt() != null) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm");
+                timeStr = sdf.format(dto.getPlayedAt());
+            }
+
+            sb.append(dto.getMatchId()).append(",")
+              .append(dto.getOpponentNickname()).append(",")
+              .append(dto.getResult()).append(",") 
+              .append(timeStr);
+              
+            if (i < historyList.size() - 1) {
+                sb.append(";");
+            }
+        }
+        out.println(sb.toString());
     }
 }
