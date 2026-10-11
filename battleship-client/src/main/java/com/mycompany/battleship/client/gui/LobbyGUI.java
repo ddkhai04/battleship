@@ -257,7 +257,7 @@ public class LobbyGUI extends Application {
         colDoiThu.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
 
         TableColumn<String[], String> colKetQua = new TableColumn<>("Kết quả");
-        colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2].equals("WIN") ? "Thắng" : "Thua"));
+colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
 
         TableColumn<String[], String> colThoiGian = new TableColumn<>("Thời gian");
         colThoiGian.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
@@ -320,14 +320,19 @@ public class LobbyGUI extends Application {
 
     public void capNhatBangXepHang(String noiDung) {
         dsXepHang.clear();
-        if (noiDung.isEmpty()) return;
+        if (noiDung == null || noiDung.isEmpty()) return;
+        
         for (String bg : noiDung.split(";")) {
             String[] cot = bg.split(",");
+            // Kiểm tra độ dài mảng phải đủ 5 phần tử (hạng, tên, thắng, thua, điểm)
             if (cot.length >= 5) {
                 dsXepHang.add(cot);
+                // Nếu đúng là user đang đăng nhập thì cập nhật điểm lên thanh header
                 if (cot[1].equalsIgnoreCase(currentUsername)) {
                     currentScore = cot[4];
-                    lblScore.setText("Điểm: " + currentScore);
+                    Platform.runLater(() -> {
+                        lblScore.setText("Điểm: " + currentScore);
+                    });
                 }
             }
         }
