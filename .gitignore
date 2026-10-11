@@ -26,3 +26,5 @@ nbdist/
 # Operating System files
 .DS_Store
 Thumbs.db
+/battleship-game/nbproject/private/
+/game/nbproject/private/
