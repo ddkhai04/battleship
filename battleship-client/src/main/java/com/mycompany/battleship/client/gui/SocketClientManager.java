@@ -321,6 +321,7 @@ public class SocketClientManager {
                             waitingAlert.setTitle("Đang chờ");
                             waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
                             waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
+                            DialogStyle.apply(waitingAlert);
                             waitingAlert.show();
                         });
                     }
@@ -352,6 +353,7 @@ public class SocketClientManager {
                     javafx.scene.control.ButtonType btnDongY = new javafx.scene.control.ButtonType("Đồng ý", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
                     javafx.scene.control.ButtonType btnTuChoi = new javafx.scene.control.ButtonType("Từ chối", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
                     alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
+                    DialogStyle.apply(alert);
 
                     alert.showAndWait().ifPresent(ans -> {
                         if (ans == btnDongY) {
@@ -376,6 +378,7 @@ public class SocketClientManager {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
                     alert.setTitle("Thông báo");
                     alert.setHeaderText("Đối thủ đã từ chối tái đấu!");
+                    DialogStyle.apply(alert);
                     alert.showAndWait();
                     
                     if (gameStage != null) gameStage.close();
@@ -392,6 +395,7 @@ public class SocketClientManager {
                     alert.setTitle("Thông báo");
                     alert.setHeaderText(null);
                     alert.setContentText(msg);
+                    DialogStyle.apply(alert);
                     alert.show();
                 });
                 break;

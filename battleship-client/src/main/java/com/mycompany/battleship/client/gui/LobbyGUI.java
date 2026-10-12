@@ -111,9 +111,7 @@ public class LobbyGUI extends Application {
 
     /** Áp dụng phong cách chung cho các hộp thoại của sảnh chờ. */
     private void apDungStyle(Alert alert) {
-        DialogPane dp = alert.getDialogPane();
-        dp.getStylesheets().add(duongDanCss());
-        dp.getStyleClass().add("lobby-dialog");
+        DialogStyle.apply(alert);
     }
 
     /** Dùng chung cho 3 bảng: bo góc, cột giãn đều, thông báo khi trống. */
