@@ -402,6 +402,7 @@ public class ClientHandler implements Runnable {
             String timeStr = "";
             if(dto.getPlayedAt() != null) {
                 java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm");
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
                 timeStr = sdf.format(dto.getPlayedAt());
             }
 
