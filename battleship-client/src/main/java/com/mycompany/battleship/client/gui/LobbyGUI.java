@@ -22,8 +22,13 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.control.TableCell;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
 import java.util.Optional;
 
@@ -72,7 +77,7 @@ public class LobbyGUI extends Application {
         tabPane.getTabs().add(taoTabLichSu());
         tabPane.getTabs().add(taoTabXepHang());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.getStyleClass().add("custom-tabpane");
+        tabPane.getStyleClass().add("lobby-tabs");
         
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             if (newTab != null) {
@@ -87,30 +92,90 @@ public class LobbyGUI extends Application {
             }
         });
         
-        BorderPane.setMargin(tabPane, new Insets(10, 20, 20, 20));
+        BorderPane.setMargin(tabPane, new Insets(20, 28, 28, 28));
         root.setCenter(tabPane);
 
         SocketClientManager.guiTinNhan("LIST_PLAYERS");
 
         Scene scene = new Scene(root, 900, 600);
-        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        scene.getStylesheets().add(duongDanCss());
 
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
+    /** Đường dẫn stylesheet dùng chung với màn hình trận đấu (game-style.css). */
+    private String duongDanCss() {
+        return getClass().getResource("/game-style.css").toExternalForm();
+    }
+
+    /** Áp dụng phong cách chung cho các hộp thoại của sảnh chờ. */
+    private void apDungStyle(Alert alert) {
+        DialogStyle.apply(alert);
+    }
+
+    /** Dùng chung cho 3 bảng: bo góc, cột giãn đều, thông báo khi trống. */
+    private <T> void tuyChinhBang(TableView<T> bang) {
+        bang.getStyleClass().add("lobby-table");
+        bang.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+        bang.setPlaceholder(new Label("Chưa có dữ liệu"));
+
+        Rectangle clip = new Rectangle();
+        clip.setArcWidth(20);
+        clip.setArcHeight(20);
+        clip.widthProperty().bind(bang.widthProperty());
+        clip.heightProperty().bind(bang.heightProperty());
+        bang.setClip(clip);
+
+        VBox.setVgrow(bang, Priority.ALWAYS);
+    }
+
+    /** Thanh công cụ phía trên mỗi bảng (nút làm mới, ô tìm kiếm...). */
+    private HBox taoThanhCongCu(javafx.scene.Node... nodes) {
+        HBox toolbar = new HBox(10, nodes);
+        toolbar.setPadding(new Insets(16));
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+        return toolbar;
+    }
+
+    /** Ghép thanh công cụ + bảng thành nội dung của một tab. */
+    private VBox taoNoiDungTab(HBox toolbar, TableView<?> bang) {
+        VBox.setMargin(bang, new Insets(0, 16, 16, 16));
+        return new VBox(toolbar, bang);
+    }
+
     private HBox taoThanhTieuDe() {
-        Label lblTitle = new Label("BATTLE SHIP COMMAND CENTER");
-        lblTitle.getStyleClass().add("header-title");
+        // Avatar + tên + điểm: cùng kiểu với thanh trên của màn hình trận đấu
+        String ten = currentUsername == null ? "" : currentUsername;
 
-        lblUser = new Label("Tài khoản: " + currentUsername);
-        lblUser.getStyleClass().add("header-user");
+        Circle avatarBg = new Circle(20);
+        avatarBg.getStyleClass().addAll("player-avatar", "avatar-color-1");
+        Label initial = new Label(ten.isEmpty() ? "?" : ten.substring(0, 1).toUpperCase());
+        initial.getStyleClass().add("player-avatar-initial");
+        StackPane avatar = new StackPane(avatarBg, initial);
 
-        lblScore = new Label("Điểm: " + currentScore);
-        lblScore.getStyleClass().add("header-score");
+        lblUser = new Label(ten);
+        lblUser.getStyleClass().add("player-name");
 
-        Button btnLogout = new Button("ĐĂNG XUẤT");
-        btnLogout.getStyleClass().add("btn-danger");
+        lblScore = new Label("★ " + currentScore);
+        lblScore.getStyleClass().add("score-badge");
+
+        VBox textBox = new VBox(3, lblUser, lblScore);
+        textBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox userBox = new HBox(10, avatar, textBox);
+        userBox.setAlignment(Pos.CENTER_LEFT);
+        userBox.setPrefWidth(280);
+
+        Label lblTitle = new Label("BATTLE SHIP");
+        lblTitle.getStyleClass().add("lobby-title");
+        Label lblSub = new Label("COMMAND CENTER");
+        lblSub.getStyleClass().add("lobby-subtitle");
+        VBox titleBox = new VBox(2, lblTitle, lblSub);
+        titleBox.setAlignment(Pos.CENTER);
+
+        Button btnLogout = new Button("Đăng xuất");
+        btnLogout.getStyleClass().add("lobby-btn-exit");
         btnLogout.setOnAction(e -> {
             SocketClientManager.guiTinNhan("LOGOUT");
             SocketClientManager.dongKetNoi();
@@ -118,31 +183,38 @@ public class LobbyGUI extends Application {
             loginGUI.start(primaryStage);
         });
 
-        HBox box = new HBox(30, lblTitle, lblUser, lblScore, btnLogout);
-        box.setAlignment(Pos.CENTER_LEFT);
-        box.setPadding(new Insets(15, 20, 10, 20));
-        box.getStyleClass().add("header-bar");
+        HBox rightBox = new HBox(btnLogout);
+        rightBox.setAlignment(Pos.CENTER_RIGHT);
+        rightBox.setPrefWidth(280);
+
+        Region spacerLeft = new Region();
+        Region spacerRight = new Region();
+        HBox.setHgrow(spacerLeft, Priority.ALWAYS);
+        HBox.setHgrow(spacerRight, Priority.ALWAYS);
+
+        HBox box = new HBox(userBox, spacerLeft, titleBox, spacerRight, rightBox);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(20, 28, 14, 28));
+        box.getStyleClass().add("top-bar");
         return box;
     }
 
     private Tab taoTabNguoiChoi() {
         txtSearch = new TextField();
         txtSearch.setPromptText("Tìm theo tên...");
-        txtSearch.getStyleClass().add("input-field");
+        txtSearch.getStyleClass().add("lobby-search");
         
         Button btnSearch = new Button("Làm mới"); // Đổi nút thành Làm mới để load lại danh sách từ server
-        btnSearch.getStyleClass().add("btn-secondary");
+        btnSearch.getStyleClass().add("lobby-btn-primary");
         btnSearch.setOnAction(e -> {
             SocketClientManager.guiTinNhan("LIST_PLAYERS");
             txtSearch.clear(); // Bấm làm mới thì xóa trắng ô tìm kiếm
         });
 
-        HBox toolbar = new HBox(10, txtSearch, btnSearch);
-        toolbar.setPadding(new Insets(15));
-        toolbar.setAlignment(Pos.CENTER_LEFT);
+        HBox toolbar = taoThanhCongCu(txtSearch, btnSearch);
 
         tblPlayers = new TableView<>();
-        tblPlayers.getStyleClass().add("data-table");
+        tuyChinhBang(tblPlayers);
         TableColumn<String[], String> colTen = new TableColumn<>("Tên người chơi");
         colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
         colTen.setPrefWidth(250);
@@ -160,19 +232,20 @@ public class LobbyGUI extends Application {
             if (empty || item == null) {
                 setText(null);
                 setGraphic(null);
+                setStyle("");
             } else {
                 setText(item.toLowerCase()); 
                 setGraphicTextGap(8); 
 
                 if (item.equalsIgnoreCase("ONLINE")) {
-                    dot.setFill(javafx.scene.paint.Color.web("#008000")); 
-                    setStyle("-fx-text-fill: #008000; -fx-font-weight: bold;");
+                    dot.setFill(javafx.scene.paint.Color.web("#00897B")); 
+                    setStyle("-fx-text-fill: #00897B; -fx-font-weight: bold;");
                 } else if (item.equalsIgnoreCase("OFFLINE")) {
-                    dot.setFill(javafx.scene.paint.Color.GRAY);
-                    setStyle("-fx-text-fill: gray; -fx-font-weight: normal;");
+                    dot.setFill(javafx.scene.paint.Color.web("#B0BEC5"));
+                    setStyle("-fx-text-fill: #90A4AE; -fx-font-weight: normal;");
                 } else {
-                    dot.setFill(javafx.scene.paint.Color.web("#E67E22"));
-                    setStyle("-fx-text-fill: #E67E22; -fx-font-weight: bold;");
+                    dot.setFill(javafx.scene.paint.Color.web("#F9A825"));
+                    setStyle("-fx-text-fill: #F57C00; -fx-font-weight: bold;");
                 }
 
                 setGraphic(dot);
@@ -189,13 +262,11 @@ public class LobbyGUI extends Application {
         colThachDau.setCellFactory(col -> new javafx.scene.control.TableCell<String[], Void>() {
             private final Button btn = new Button("Thách đấu");
             {
-                btn.getStyleClass().add("btn-challenge");
+                btn.getStyleClass().add("lobby-btn-challenge");
                 btn.setOnAction(e -> {
                     if (isWaiting) {
                         Alert canhkBao = new Alert(AlertType.WARNING, "Bạn đang đợi một người khác trả lời. Hãy Hủy yêu cầu cũ trước!");
-                        DialogPane dp = canhkBao.getDialogPane();
-                        dp.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-                        dp.getStyleClass().add("lobby-root");
+                        apDungStyle(canhkBao);
                         canhkBao.show();
                         return;
                     }
@@ -239,17 +310,16 @@ public class LobbyGUI extends Application {
         // Nhúng cái danh sách ĐÃ ĐƯỢC LỌC (filteredData) vào bảng thay vì danh sách gốc
         tblPlayers.setItems(filteredData);
 
-        VBox box = new VBox(toolbar, tblPlayers);
-        return new Tab("Danh sách người chơi", box);
+        return new Tab("Danh sách người chơi", taoNoiDungTab(toolbar, tblPlayers));
     }
 
     private Tab taoTabLichSu() {
         Button btnRefresh = new Button("Làm mới");
-        btnRefresh.getStyleClass().add("btn-secondary");
+        btnRefresh.getStyleClass().add("lobby-btn-primary");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("MATCH_HISTORY"));
 
         tblHistory = new TableView<>();
-        tblHistory.getStyleClass().add("data-table");
+        tuyChinhBang(tblHistory);
         TableColumn<String[], String> colId = new TableColumn<>("Mã trận");
         colId.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
 
@@ -257,7 +327,26 @@ public class LobbyGUI extends Application {
         colDoiThu.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
 
         TableColumn<String[], String> colKetQua = new TableColumn<>("Kết quả");
-colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
+        colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
+        // Hiển thị kết quả dạng huy hiệu: Thắng (xanh ngọc) / Thua (đỏ nhạt)
+        colKetQua.setCellFactory(col -> new TableCell<String[], String>() {
+            private final Label pill = new Label();
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                pill.setText(item);
+                pill.getStyleClass().setAll("label", "lobby-pill",
+                        item.equalsIgnoreCase("Thắng") ? "lobby-result-win" : "lobby-result-lose");
+                setText(null);
+                setGraphic(pill);
+            }
+        });
 
         TableColumn<String[], String> colThoiGian = new TableColumn<>("Thời gian");
         colThoiGian.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
@@ -265,20 +354,39 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
         tblHistory.getColumns().addAll(colId, colDoiThu, colKetQua, colThoiGian);
         tblHistory.setItems(dsLichSu);
 
-        VBox box = new VBox(new HBox(btnRefresh), tblHistory);
-        ((HBox) box.getChildren().get(0)).setPadding(new Insets(15));
-        return new Tab("Lịch sử đấu", box);
+        return new Tab("Lịch sử đấu", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblHistory));
     }
 
     private Tab taoTabXepHang() {
         Button btnRefresh = new Button("Làm mới");
-        btnRefresh.getStyleClass().add("btn-secondary");
+        btnRefresh.getStyleClass().add("lobby-btn-primary");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("LEADERBOARD"));
 
         tblRank = new TableView<>();
-        tblRank.getStyleClass().add("data-table");
+        tuyChinhBang(tblRank);
         TableColumn<String[], String> colHang = new TableColumn<>("Hạng");
         colHang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
+        // Top 3 hiển thị dạng huy hiệu vàng / bạc / đồng
+        colHang.setCellFactory(col -> new TableCell<String[], String>() {
+            private final Label pill = new Label();
+
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else if (item.equals("1") || item.equals("2") || item.equals("3")) {
+                    pill.setText("#" + item);
+                    pill.getStyleClass().setAll("label", "lobby-pill", "lobby-rank-" + item);
+                    setText(null);
+                    setGraphic(pill);
+                } else {
+                    setGraphic(null);
+                    setText(item);
+                }
+            }
+        });
 
         TableColumn<String[], String> colTen = new TableColumn<>("Tên người chơi");
         colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
@@ -295,9 +403,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
         tblRank.getColumns().addAll(colHang, colTen, colThang, colThua, colDiem);
         tblRank.setItems(dsXepHang);
 
-        VBox box = new VBox(new HBox(btnRefresh), tblRank);
-        ((HBox) box.getChildren().get(0)).setPadding(new Insets(15));
-        return new Tab("Bảng xếp hạng", box);
+        return new Tab("Bảng xếp hạng", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblRank));
     }
 
     public void capNhatDanhSachNguoiChoi(String noiDung) {
@@ -331,7 +437,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
                 if (cot[1].equalsIgnoreCase(currentUsername)) {
                     currentScore = cot[4];
                     Platform.runLater(() -> {
-                        lblScore.setText("Điểm: " + currentScore);
+                        lblScore.setText("★ " + currentScore);
                     });
                 }
             }
@@ -348,9 +454,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
         ButtonType btnHuy = new ButtonType("Hủy yêu cầu", ButtonBar.ButtonData.CANCEL_CLOSE);
         alertChoXacNhan.getButtonTypes().setAll(btnHuy);
 
-        DialogPane dialogPane = alertChoXacNhan.getDialogPane();
-        dialogPane.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-        dialogPane.getStyleClass().add("lobby-root");
+        apDungStyle(alertChoXacNhan);
 
         SocketClientManager.guiTinNhan("INVITE|" + tenDoiThu);
 
@@ -381,6 +485,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
         ButtonType btnDongY = new ButtonType("Vào trận", ButtonBar.ButtonData.OK_DONE);
         ButtonType btnTuChoi = new ButtonType("Từ chối", ButtonBar.ButtonData.CANCEL_CLOSE);
         alertNhanLoiMoi.getButtonTypes().setAll(btnDongY, btnTuChoi);
+        apDungStyle(alertNhanLoiMoi);
 
         Optional<ButtonType> ketQua = alertNhanLoiMoi.showAndWait();
         
@@ -403,6 +508,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
 
         Platform.runLater(() -> {
             Alert alert = new Alert(AlertType.WARNING, nguoiTuChoi + " không muốn giao chiến lúc này.", ButtonType.OK);
+            apDungStyle(alert);
             alert.setTitle("Từ chối");
             alert.setHeaderText("Mục tiêu đã rút lui!");
             alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
@@ -418,6 +524,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
 
             Platform.runLater(() -> {
                 Alert alert = new Alert(AlertType.INFORMATION, nguoiHuy + " đã mất kiên nhẫn và hủy lời mời!", ButtonType.OK);
+                apDungStyle(alert);
                 alert.setTitle("Hủy yêu cầu");
                 alert.setHeaderText(null);
                 alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);
@@ -447,6 +554,7 @@ colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProp
         Platform.runLater(() -> {
             Alert alert = new Alert(AlertType.ERROR, lyDo, ButtonType.OK);
             if (primaryStage != null) alert.initOwner(primaryStage);
+            apDungStyle(alert);
             alert.setTitle("Thất bại");
             alert.setHeaderText("Không thể gửi chiến thư!");
             alert.getDialogPane().setMinHeight(Region.USE_PREF_SIZE);

@@ -30,6 +30,7 @@ public class SocketClientManager {
 
     public static GameRoomGUI gameRoomScreen;
     public static Stage gameStage;
+    private static Alert waitingAlert;
 
     public static boolean ketNoiServer() {
         try {
@@ -296,6 +297,7 @@ public class SocketClientManager {
                 break;
 
             // KẾT THÚC TRẬN ĐẤU
+            // KẾT THÚC TRẬN ĐẤU
             case "GAME_OVER":
             case "MATCH_END":
                 Platform.runLater(() -> {
@@ -306,9 +308,22 @@ public class SocketClientManager {
                         boolean isWinner = "WIN".equalsIgnoreCase(outcome);
 
                         gameRoomScreen.showResultPopup(isWinner, reason, () -> {
+                            guiTinNhan("LEAVE_MATCH"); // Báo Server hủy phòng nếu chọn Về sảnh
                             if (gameStage != null) gameStage.close();
                             quayVeSanh();
-                        }, () -> guiTinNhan("REMATCH"));
+                        }, () -> {
+                            guiTinNhan("REMATCH");
+                            // Hiện thông báo và lưu vào biến toàn cục waitingAlert để có thể đóng lại sau
+                            if (waitingAlert != null) {
+                                waitingAlert.close();
+                            }
+                            waitingAlert = new Alert(Alert.AlertType.INFORMATION);
+                            waitingAlert.setTitle("Đang chờ");
+                            waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
+                            waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
+                            DialogStyle.apply(waitingAlert);
+                            waitingAlert.show();
+                        });
                     }
                 });
                 break;
@@ -333,14 +348,44 @@ public class SocketClientManager {
                     alert.setTitle("Tái đấu");
                     alert.setHeaderText(challenger + " muốn tái đấu ván nữa!");
                     alert.setContentText("Bạn có đồng ý không?");
+                    
+                    // Custom lại 2 nút cho rõ ràng
+                    javafx.scene.control.ButtonType btnDongY = new javafx.scene.control.ButtonType("Đồng ý", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+                    javafx.scene.control.ButtonType btnTuChoi = new javafx.scene.control.ButtonType("Từ chối", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+                    alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
+                    DialogStyle.apply(alert);
+
                     alert.showAndWait().ifPresent(ans -> {
-                        if (ans == ButtonType.OK) {
+                        if (ans == btnDongY) {
                             guiTinNhan("REMATCH");
+                        } else {
+                            guiTinNhan("REJECT_REMATCH"); // Gửi tín hiệu từ chối lên Server
+                            if (gameStage != null) gameStage.close();
+                            quayVeSanh();
                         }
                     });
                 });
                 break;
-
+            
+            case "REMATCH_DECLINED":
+                Platform.runLater(() -> {
+                    // Đóng bảng "Đang chờ" ngay lập tức nếu nó đang hiển thị
+                    if (waitingAlert != null) {
+                        waitingAlert.close();
+                        waitingAlert = null;
+                    }
+                    
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Thông báo");
+                    alert.setHeaderText("Đối thủ đã từ chối tái đấu!");
+                    DialogStyle.apply(alert);
+                    alert.showAndWait();
+                    
+                    if (gameStage != null) gameStage.close();
+                    quayVeSanh();
+                });
+                break;  
+                
             case "GAME_ERROR":
             case "ERROR":
                 Platform.runLater(() -> {
@@ -350,6 +395,7 @@ public class SocketClientManager {
                     alert.setTitle("Thông báo");
                     alert.setHeaderText(null);
                     alert.setContentText(msg);
+                    DialogStyle.apply(alert);
                     alert.show();
                 });
                 break;

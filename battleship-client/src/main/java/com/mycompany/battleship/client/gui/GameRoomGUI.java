@@ -178,6 +178,7 @@ public class GameRoomGUI extends Application {
             ButtonType btnXacNhan = new ButtonType("Xác nhận");
             ButtonType btnHuy = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
             alert.getButtonTypes().setAll(btnXacNhan, btnHuy);
+            DialogStyle.apply(alert);
 
             alert.showAndWait().ifPresent(type -> {
                 if (type == btnXacNhan) {
