@@ -23,7 +23,7 @@ public class MatchDAO {
     public boolean saveMatchResult(int player1Id, int player2Id, int winnerId, int loserId, int scoreDelta) {
         String sqlInsertMatch = "INSERT INTO matches (player1_id, player2_id, winner_id, loser_id) VALUES (?, ?, ?, ?)";
         String sqlUpdateWinner = "UPDATE users SET score = score + ?, wins = wins + 1 WHERE id = ?";
-        String sqlUpdateLoser = "UPDATE users SET score = GREATEST(0, score - ?), losses = losses + 1 WHERE id = ?";
+        String sqlUpdateLoser = "UPDATE users SET score = GREATEST(0, score - 1), losses = losses + 1 WHERE id = ?";
 
         Connection conn = null;
         try {
