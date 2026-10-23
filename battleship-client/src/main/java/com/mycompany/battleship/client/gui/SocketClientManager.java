@@ -1,6 +1,8 @@
 package com.mycompany.battleship.client.gui;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mycompany.battleship.common.model.GameView;
 import com.mycompany.battleship.common.model.ShotResult;
 import java.io.BufferedReader;
@@ -11,7 +13,6 @@ import java.io.OutputStreamWriter;
 import java.net.Socket;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 import javafx.stage.Stage;
 
 public class SocketClientManager {
@@ -27,6 +28,7 @@ public class SocketClientManager {
     public static LoginGUI loginScreen;
     public static RegisterGUI registerScreen;
     public static LobbyGUI lobbyScreen;
+    public static AdminGUI adminScreen; // Quản lý màn hình Admin
 
     public static GameRoomGUI gameRoomScreen;
     public static Stage gameStage;
@@ -65,11 +67,8 @@ public class SocketClientManager {
             out.flush();
 
             String logContent = noiDung;
-            if (noiDung.startsWith("LOGIN|") || noiDung.startsWith("REGISTER|")) {
-                String[] parts = noiDung.split("\\|");
-                if (parts.length >= 3) {
-                    logContent = parts[0] + "|" + parts[1] + "|***HIDDEN***";
-                }
+            if (noiDung.contains("LOGIN") || noiDung.contains("REGISTER")) {
+                logContent = noiDung.replaceFirst("\"password\":\\s*\"[^\"]*\"", "\"password\":\"***HIDDEN***\"");
             }
             System.out.println("[GUI] " + logContent);
 
@@ -95,21 +94,62 @@ public class SocketClientManager {
     }
 
     private static void xuLyTinNhan(String duLieu) {
-        String[] parts = duLieu.split("\\|", 2);
-        String lenh = parts[0];
+        String lenh = "";
+        JsonObject jsonPayload = null;
+        boolean isJsonFormat = false;
 
-        switch (lenh) {
+        // Thử parse theo chuẩn JSON mới {"command": "...", "payload": {...}}
+        try {
+            if (duLieu.trim().startsWith("{")) {
+                JsonObject root = JsonParser.parseString(duLieu).getAsJsonObject();
+                if (root.has("command")) {
+                    lenh = root.get("command").getAsString();
+                    if (root.has("payload") && root.get("payload").isJsonObject()) {
+                        jsonPayload = root.getAsJsonObject("payload");
+                    }
+                    isJsonFormat = true;
+                }
+            }
+        } catch (Exception e) {
+            isJsonFormat = false;
+        }
+
+        // Nếu không phải JSON, dùng cách cắt chuỗi cũ
+        String[] parts = null;
+        if (!isJsonFormat) {
+            parts = duLieu.split("\\|", 2);
+            lenh = parts[0];
+        }
+
+        // Gán sang các biến final để sử dụng an toàn bên trong các hàm Lambda (Platform.runLater)
+        final String command = lenh;
+        final JsonObject payload = jsonPayload;
+        final boolean finalIsJson = isJsonFormat;
+        final String rawData = duLieu;
+        final String[] stringParts = parts;
+
+        switch (command) {
             case "LOGIN_OK":
                 Platform.runLater(() -> {
-                    if (loginScreen != null) loginScreen.dangNhapThanhCong(duLieu.split("\\|"));
+                    if (loginScreen != null) {
+                        if (finalIsJson && payload != null) {
+                            loginScreen.dangNhapThanhCong(payload);
+                        } else if (stringParts != null) {
+                            loginScreen.dangNhapThanhCong(stringParts[1].split("\\|"));
+                        }
+                    }
                 });
                 break;
 
             case "LOGIN_FAIL":
                 Platform.runLater(() -> {
                     if (loginScreen != null) {
-                        String[] p = duLieu.split("\\|");
-                        String lyDo = p.length > 1 ? p[1] : "Sai tai khoan hoac mat khau.";
+                        String lyDo = "Sai tài khoản hoặc mật khẩu.";
+                        if (finalIsJson && payload != null && payload.has("message")) {
+                            lyDo = payload.get("message").getAsString();
+                        } else if (stringParts != null && stringParts.length > 1) {
+                            lyDo = stringParts[1];
+                        }
                         loginScreen.dangNhapThatBai(lyDo);
                     }
                 });
@@ -124,17 +164,62 @@ public class SocketClientManager {
             case "REGISTER_FAIL":
                 Platform.runLater(() -> {
                     if (registerScreen != null) {
-                        String[] p = duLieu.split("\\|");
-                        String lyDo = p.length > 1 ? p[1] : "Dang ky khong thanh cong.";
+                        String lyDo = "Đăng ký không thành công.";
+                        if (finalIsJson && payload != null && payload.has("message")) {
+                            lyDo = payload.get("message").getAsString();
+                        } else if (stringParts != null && stringParts.length > 1) {
+                            lyDo = stringParts[1];
+                        }
                         registerScreen.dangKyThatBai(lyDo);
+                    }
+                });
+                break;
+
+            // Xử lý dữ liệu trả về cho giao diện ADMIN
+            case "ADMIN_DATA":
+                Platform.runLater(() -> {
+                    if (adminScreen != null && payload != null) {
+                        adminScreen.capNhatDuLieuAdmin(payload);
+                    }
+                });
+                break;
+
+            // Xử lý dữ liệu Xem trực tiếp (Spectate - God View)
+            case "SPECTATE_VIEW":
+                Platform.runLater(() -> {
+                    if (payload != null) {
+                        if (gameRoomScreen == null) {
+                            gameRoomScreen = new GameRoomGUI();
+                            gameStage = new Stage();
+                            try {
+                                gameRoomScreen.start(gameStage);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                        // gameRoomScreen.renderSpectatorView(payload); // Gọi hàm hiển thị God View trong GameRoomGUI
+                    }
+                });
+                break;
+
+            // Xử lý dữ liệu Xem lại trận đấu (Replay)
+            case "REPLAY_DATA":
+                Platform.runLater(() -> {
+                    if (payload != null) {
+                        ReplayGUI replayGUI = new ReplayGUI(payload);
+                        try {
+                            replayGUI.start(new Stage());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
                 });
                 break;
 
             case "PLAYER_LIST":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String noiDungDanhSach = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String noiDungDanhSach = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.capNhatDanhSachNguoiChoi(noiDungDanhSach);
                     }
                 });
@@ -142,8 +227,8 @@ public class SocketClientManager {
 
             case "HISTORY_LIST":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String noiDung = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String noiDung = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.capNhatLichSuDau(noiDung);
                     }
                 });
@@ -151,8 +236,8 @@ public class SocketClientManager {
 
             case "RANK_LIST":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String noiDung = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String noiDung = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.capNhatBangXepHang(noiDung);
                     }
                 });
@@ -160,8 +245,8 @@ public class SocketClientManager {
 
             case "INVITE_FROM":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String nguoiMoi = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String nguoiMoi = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.nhanLoiThachDau(nguoiMoi);
                     }
                 });
@@ -169,8 +254,8 @@ public class SocketClientManager {
 
             case "REJECT_FROM":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String nguoiTuChoi = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String nguoiTuChoi = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.loiMoiBiTuChoi(nguoiTuChoi);
                     }
                 });
@@ -178,8 +263,8 @@ public class SocketClientManager {
 
             case "INVITE_CANCELLED":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String nguoiHuy = parts.length > 1 ? parts[1] : "";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String nguoiHuy = stringParts.length > 1 ? stringParts[1] : "";
                         lobbyScreen.doiThuHuyLoiMoi(nguoiHuy);
                     }
                 });
@@ -187,8 +272,8 @@ public class SocketClientManager {
 
             case "INVITE_FAIL":
                 Platform.runLater(() -> {
-                    if (lobbyScreen != null) {
-                        String lyDo = parts.length > 1 ? parts[1] : "Không thể gửi lời mời lúc này.";
+                    if (lobbyScreen != null && stringParts != null) {
+                        String lyDo = stringParts.length > 1 ? stringParts[1] : "Không thể gửi lời mời lúc này.";
                         lobbyScreen.loiThachDauThatBai(lyDo);
                     }
                 });
@@ -196,7 +281,7 @@ public class SocketClientManager {
 
             case "MATCH_START":
                 Platform.runLater(() -> {
-                    String[] mParts = duLieu.split("\\|");
+                    String[] mParts = rawData.split("\\|");
                     if (lobbyScreen != null) {
                         lobbyScreen.batDauTranDau(mParts);
                     }
@@ -213,7 +298,6 @@ public class SocketClientManager {
                     gameRoomScreen.setPlayerNames(LobbyGUI.currentUsername, tenDoiThu);
                     gameRoomScreen.setPlayerScores(diemCuaMinh, 0);
 
-                    // Gắn sự kiện bắn khi người chơi click vào ô cờ đối thủ
                     gameRoomScreen.setOnAttackCellClicked((row, col) -> {
                         String weapon = gameRoomScreen.getSelectedWeapon();
                         if ("RAIN".equals(weapon)) {
@@ -223,7 +307,6 @@ public class SocketClientManager {
                         }
                     });
 
-                    // Gắn sự kiện khi bấm nút Thoát
                     gameRoomScreen.setOnExitGameClicked(() -> {
                         guiTinNhan("SURRENDER");
                         if (gameStage != null) {
@@ -232,7 +315,6 @@ public class SocketClientManager {
                         quayVeSanh();
                     });
 
-                    // Gắn sự kiện bấm nút Tái đấu
                     gameRoomScreen.setOnRematchClicked(() -> guiTinNhan("REMATCH"));
 
                     try {
@@ -243,10 +325,9 @@ public class SocketClientManager {
                 });
                 break;
 
-            // ĐỒNG BỘ BÀN CỜ
             case "GAME_VIEW":
-                if (parts.length > 1) {
-                    GameView view = GSON.fromJson(parts[1], GameView.class);
+                if (stringParts != null && stringParts.length > 1) {
+                    GameView view = GSON.fromJson(stringParts[1], GameView.class);
                     Platform.runLater(() -> {
                         if (gameRoomScreen != null) {
                             gameRoomScreen.renderGameView(view);
@@ -255,10 +336,9 @@ public class SocketClientManager {
                 }
                 break;
 
-            // ĐẾM NGƯỢC 3, 2, 1
             case "COUNTDOWN":
-                if (parts.length > 1) {
-                    int count = Integer.parseInt(parts[1]);
+                if (stringParts != null && stringParts.length > 1) {
+                    int count = Integer.parseInt(stringParts[1]);
                     Platform.runLater(() -> {
                         if (gameRoomScreen != null) {
                             gameRoomScreen.showCountdown(count);
@@ -267,27 +347,25 @@ public class SocketClientManager {
                 }
                 break;
 
-            // BẮT ĐẦU LƯỢT BẮN
             case "TURN_START":
-                if (parts.length > 1) {
-                    String[] tParts = parts[1].split("\\|");
+                if (stringParts != null && stringParts.length > 1) {
+                    String[] tParts = stringParts[1].split("\\|");
                     String turnPlayer = tParts[0];
                     int seconds = Integer.parseInt(tParts[1]);
                     Platform.runLater(() -> {
                         if (gameRoomScreen != null) {
-                            gameRoomScreen.hideCountdown(); // Tắt số 1 đè trên màn hình
+                            gameRoomScreen.hideCountdown();
                             boolean myTurn = turnPlayer.equals(LobbyGUI.currentUsername);
                             gameRoomScreen.setTurnIndicator(myTurn);
-                            gameRoomScreen.startTurnTimer(seconds); // Cả 2 client cùng chạy đếm lùi
+                            gameRoomScreen.startTurnTimer(seconds);
                         }
                     });
                 }
                 break;
 
-            // KẾT QUẢ PHÁT BẮN
             case "SHOT_RESULT":
-                if (parts.length > 1) {
-                    ShotResult shot = GSON.fromJson(parts[1], ShotResult.class);
+                if (stringParts != null && stringParts.length > 1) {
+                    ShotResult shot = GSON.fromJson(stringParts[1], ShotResult.class);
                     Platform.runLater(() -> {
                         if (gameRoomScreen != null) {
                             gameRoomScreen.applyShotResult(shot);
@@ -296,24 +374,21 @@ public class SocketClientManager {
                 }
                 break;
 
-            // KẾT THÚC TRẬN ĐẤU
-            // KẾT THÚC TRẬN ĐẤU
             case "GAME_OVER":
             case "MATCH_END":
                 Platform.runLater(() -> {
                     if (gameRoomScreen != null) {
-                        String[] goParts = duLieu.split("\\|");
+                        String[] goParts = rawData.split("\\|");
                         String outcome = goParts.length > 1 ? goParts[1] : "LOSE";
                         String reason = goParts.length > 2 ? goParts[2] : "";
                         boolean isWinner = "WIN".equalsIgnoreCase(outcome);
 
                         gameRoomScreen.showResultPopup(isWinner, reason, () -> {
-                            guiTinNhan("LEAVE_MATCH"); // Báo Server hủy phòng nếu chọn Về sảnh
+                            guiTinNhan("LEAVE_MATCH");
                             if (gameStage != null) gameStage.close();
                             quayVeSanh();
                         }, () -> {
                             guiTinNhan("REMATCH");
-                            // Hiện thông báo và lưu vào biến toàn cục waitingAlert để có thể đóng lại sau
                             if (waitingAlert != null) {
                                 waitingAlert.close();
                             }
@@ -342,14 +417,13 @@ public class SocketClientManager {
 
             case "REMATCH_REQUESTED":
                 Platform.runLater(() -> {
-                    String[] rParts = duLieu.split("\\|");
+                    String[] rParts = rawData.split("\\|");
                     String challenger = rParts.length > 1 ? rParts[1] : "Đối thủ";
                     Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                     alert.setTitle("Tái đấu");
                     alert.setHeaderText(challenger + " muốn tái đấu ván nữa!");
                     alert.setContentText("Bạn có đồng ý không?");
                     
-                    // Custom lại 2 nút cho rõ ràng
                     javafx.scene.control.ButtonType btnDongY = new javafx.scene.control.ButtonType("Đồng ý", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
                     javafx.scene.control.ButtonType btnTuChoi = new javafx.scene.control.ButtonType("Từ chối", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
                     alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
@@ -359,7 +433,7 @@ public class SocketClientManager {
                         if (ans == btnDongY) {
                             guiTinNhan("REMATCH");
                         } else {
-                            guiTinNhan("REJECT_REMATCH"); // Gửi tín hiệu từ chối lên Server
+                            guiTinNhan("REJECT_REMATCH");
                             if (gameStage != null) gameStage.close();
                             quayVeSanh();
                         }
@@ -369,7 +443,6 @@ public class SocketClientManager {
             
             case "REMATCH_DECLINED":
                 Platform.runLater(() -> {
-                    // Đóng bảng "Đang chờ" ngay lập tức nếu nó đang hiển thị
                     if (waitingAlert != null) {
                         waitingAlert.close();
                         waitingAlert = null;
@@ -389,7 +462,12 @@ public class SocketClientManager {
             case "GAME_ERROR":
             case "ERROR":
                 Platform.runLater(() -> {
-                    String msg = parts.length > 1 ? parts[1] : "Đã có lỗi xảy ra.";
+                    String msg = "Đã có lỗi xảy ra.";
+                    if (finalIsJson && payload != null && payload.has("message")) {
+                        msg = payload.get("message").getAsString();
+                    } else if (stringParts != null && stringParts.length > 1) {
+                        msg = stringParts[1];
+                    }
                     System.out.println("[SERVER BAO LOI] " + msg);
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Thông báo");
@@ -401,7 +479,7 @@ public class SocketClientManager {
                 break;
 
             default:
-                System.out.println("[CANH BAO] Khong hieu lenh: " + lenh);
+                System.out.println("[CANH BAO] Khong hieu lenh: " + command);
         }
     }
 
