@@ -1,5 +1,13 @@
 package com.mycompany.battleship.client.gui;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.mycompany.battleship.common.model.MessageDTO;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -13,10 +21,10 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
@@ -26,11 +34,9 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.control.TableCell;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
-import java.util.Optional;
 
 /**
  * @author DINH THE LINH
@@ -54,13 +60,11 @@ public class LobbyGUI extends Application {
     private TableView<String[]> tblRank;
     private ObservableList<String[]> dsXepHang = FXCollections.observableArrayList();
 
-    // Các biến quản lý hộp thoại và chống spam
     private Alert alertChoXacNhan;
     private Alert alertNhanLoiMoi;
     private boolean isWaiting = false;
     private boolean biHuyBo = false; 
 
-    
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -82,12 +86,11 @@ public class LobbyGUI extends Application {
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             if (newTab != null) {
                 if (newTab.getText().equals("Bảng xếp hạng")) {
-                    SocketClientManager.guiTinNhan("LEADERBOARD");
+                    SocketClientManager.guiTinNhan(new MessageDTO("LEADERBOARD", null));
                 } else if (newTab.getText().equals("Lịch sử đấu")) {
-                    SocketClientManager.guiTinNhan("MATCH_HISTORY");
+                    SocketClientManager.guiTinNhan(new MessageDTO("MATCH_HISTORY", null));
                 } else if (newTab.getText().equals("Danh sách người chơi")) {
-                    // Dùng LIST_PLAYERS mặc định, không kèm tham số tìm kiếm để reset danh sách
-                    SocketClientManager.guiTinNhan("LIST_PLAYERS"); 
+                    SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null)); 
                 }
             }
         });
@@ -95,7 +98,7 @@ public class LobbyGUI extends Application {
         BorderPane.setMargin(tabPane, new Insets(20, 28, 28, 28));
         root.setCenter(tabPane);
 
-        SocketClientManager.guiTinNhan("LIST_PLAYERS");
+        SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
 
         Scene scene = new Scene(root, 900, 600);
         scene.getStylesheets().add(duongDanCss());
@@ -104,17 +107,14 @@ public class LobbyGUI extends Application {
         primaryStage.show();
     }
 
-    /** Đường dẫn stylesheet dùng chung với màn hình trận đấu (game-style.css). */
     private String duongDanCss() {
         return getClass().getResource("/game-style.css").toExternalForm();
     }
 
-    /** Áp dụng phong cách chung cho các hộp thoại của sảnh chờ. */
     private void apDungStyle(Alert alert) {
         DialogStyle.apply(alert);
     }
 
-    /** Dùng chung cho 3 bảng: bo góc, cột giãn đều, thông báo khi trống. */
     private <T> void tuyChinhBang(TableView<T> bang) {
         bang.getStyleClass().add("lobby-table");
         bang.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
@@ -130,7 +130,6 @@ public class LobbyGUI extends Application {
         VBox.setVgrow(bang, Priority.ALWAYS);
     }
 
-    /** Thanh công cụ phía trên mỗi bảng (nút làm mới, ô tìm kiếm...). */
     private HBox taoThanhCongCu(javafx.scene.Node... nodes) {
         HBox toolbar = new HBox(10, nodes);
         toolbar.setPadding(new Insets(16));
@@ -138,14 +137,12 @@ public class LobbyGUI extends Application {
         return toolbar;
     }
 
-    /** Ghép thanh công cụ + bảng thành nội dung của một tab. */
     private VBox taoNoiDungTab(HBox toolbar, TableView<?> bang) {
         VBox.setMargin(bang, new Insets(0, 16, 16, 16));
         return new VBox(toolbar, bang);
     }
 
     private HBox taoThanhTieuDe() {
-        // Avatar + tên + điểm: cùng kiểu với thanh trên của màn hình trận đấu
         String ten = currentUsername == null ? "" : currentUsername;
 
         Circle avatarBg = new Circle(20);
@@ -177,7 +174,7 @@ public class LobbyGUI extends Application {
         Button btnLogout = new Button("Đăng xuất");
         btnLogout.getStyleClass().add("lobby-btn-exit");
         btnLogout.setOnAction(e -> {
-            SocketClientManager.guiTinNhan("LOGOUT");
+            SocketClientManager.guiTinNhan(new MessageDTO("LOGOUT", null));
             SocketClientManager.dongKetNoi();
             LoginGUI loginGUI = new LoginGUI();
             loginGUI.start(primaryStage);
@@ -204,11 +201,11 @@ public class LobbyGUI extends Application {
         txtSearch.setPromptText("Tìm theo tên...");
         txtSearch.getStyleClass().add("lobby-search");
         
-        Button btnSearch = new Button("Làm mới"); // Đổi nút thành Làm mới để load lại danh sách từ server
+        Button btnSearch = new Button("Làm mới");
         btnSearch.getStyleClass().add("lobby-btn-primary");
         btnSearch.setOnAction(e -> {
-            SocketClientManager.guiTinNhan("LIST_PLAYERS");
-            txtSearch.clear(); // Bấm làm mới thì xóa trắng ô tìm kiếm
+            SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
+            txtSearch.clear();
         });
 
         HBox toolbar = taoThanhCongCu(txtSearch, btnSearch);
@@ -247,7 +244,6 @@ public class LobbyGUI extends Application {
                     dot.setFill(javafx.scene.paint.Color.web("#F9A825"));
                     setStyle("-fx-text-fill: #F57C00; -fx-font-weight: bold;");
                 }
-
                 setGraphic(dot);
             }
         }
@@ -289,25 +285,19 @@ public class LobbyGUI extends Application {
             }
         });
 
-        // TÍNH NĂNG MỚI: Bọc danh sách gốc vào FilteredList để TÌM KIẾM TỨC THÌ
         FilteredList<String[]> filteredData = new FilteredList<>(dsNguoiChoi, p -> true);
         
-        // Lắng nghe sự kiện người dùng GÕ CHỮ vào ô tìm kiếm
         txtSearch.textProperty().addListener((observable, oldValue, newValue) -> {
             filteredData.setPredicate(player -> {
-                // Nếu xóa trắng ô tìm kiếm thì hiện tất cả
                 if (newValue == null || newValue.isEmpty()) {
                     return true;
                 }
-                
                 String lowerCaseFilter = newValue.toLowerCase();
-                // Kiểm tra xem tên người chơi có chứa từ khóa đang nhập không
                 return player[0].toLowerCase().contains(lowerCaseFilter); 
             });
         });
 
         tblPlayers.getColumns().addAll(colTen, colTrangThai, colDiem, colThachDau);
-        // Nhúng cái danh sách ĐÃ ĐƯỢC LỌC (filteredData) vào bảng thay vì danh sách gốc
         tblPlayers.setItems(filteredData);
 
         return new Tab("Danh sách người chơi", taoNoiDungTab(toolbar, tblPlayers));
@@ -316,7 +306,7 @@ public class LobbyGUI extends Application {
     private Tab taoTabLichSu() {
         Button btnRefresh = new Button("Làm mới");
         btnRefresh.getStyleClass().add("lobby-btn-primary");
-        btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("MATCH_HISTORY"));
+        btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan(new MessageDTO("MATCH_HISTORY", null)));
 
         tblHistory = new TableView<>();
         tuyChinhBang(tblHistory);
@@ -328,7 +318,6 @@ public class LobbyGUI extends Application {
 
         TableColumn<String[], String> colKetQua = new TableColumn<>("Kết quả");
         colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
-        // Hiển thị kết quả dạng huy hiệu: Thắng (xanh ngọc) / Thua (đỏ nhạt)
         colKetQua.setCellFactory(col -> new TableCell<String[], String>() {
             private final Label pill = new Label();
 
@@ -342,7 +331,7 @@ public class LobbyGUI extends Application {
                 }
                 pill.setText(item);
                 pill.getStyleClass().setAll("label", "lobby-pill",
-                        item.equalsIgnoreCase("Thắng") ? "lobby-result-win" : "lobby-result-lose");
+                        item.equalsIgnoreCase("WIN") || item.equalsIgnoreCase("Thắng") ? "lobby-result-win" : "lobby-result-lose");
                 setText(null);
                 setGraphic(pill);
             }
@@ -360,13 +349,12 @@ public class LobbyGUI extends Application {
     private Tab taoTabXepHang() {
         Button btnRefresh = new Button("Làm mới");
         btnRefresh.getStyleClass().add("lobby-btn-primary");
-        btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan("LEADERBOARD"));
+        btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan(new MessageDTO("LEADERBOARD", null)));
 
         tblRank = new TableView<>();
         tuyChinhBang(tblRank);
         TableColumn<String[], String> colHang = new TableColumn<>("Hạng");
         colHang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
-        // Top 3 hiển thị dạng huy hiệu vàng / bạc / đồng
         colHang.setCellFactory(col -> new TableCell<String[], String>() {
             private final Label pill = new Label();
 
@@ -406,41 +394,64 @@ public class LobbyGUI extends Application {
         return new Tab("Bảng xếp hạng", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblRank));
     }
 
-    public void capNhatDanhSachNguoiChoi(String noiDung) {
+    public void capNhatDanhSachNguoiChoi(String jsonString) {
         dsNguoiChoi.clear();
-        if (noiDung.isEmpty()) return;
-        for (String bg : noiDung.split(";")) {
-            String[] cot = bg.split(",");
-            if (cot.length >= 3) dsNguoiChoi.add(cot);
-        }
-    }
-
-    public void capNhatLichSuDau(String noiDung) {
-        dsLichSu.clear();
-        if (noiDung.isEmpty()) return;
-        for (String bg : noiDung.split(";")) {
-            String[] cot = bg.split(",");
-            if (cot.length >= 4) dsLichSu.add(cot);
-        }
-    }
-
-    public void capNhatBangXepHang(String noiDung) {
-        dsXepHang.clear();
-        if (noiDung == null || noiDung.isEmpty()) return;
-        
-        for (String bg : noiDung.split(";")) {
-            String[] cot = bg.split(",");
-            // Kiểm tra độ dài mảng phải đủ 5 phần tử (hạng, tên, thắng, thua, điểm)
-            if (cot.length >= 5) {
-                dsXepHang.add(cot);
-                // Nếu đúng là user đang đăng nhập thì cập nhật điểm lên thanh header
-                if (cot[1].equalsIgnoreCase(currentUsername)) {
-                    currentScore = cot[4];
-                    Platform.runLater(() -> {
-                        lblScore.setText("★ " + currentScore);
-                    });
-                }
+        if (jsonString == null || jsonString.isEmpty()) return;
+        try {
+            JsonArray array = JsonParser.parseString(jsonString).getAsJsonArray();
+            for (JsonElement el : array) {
+                JsonObject obj = el.getAsJsonObject();
+                String name = obj.has("nickname") ? obj.get("nickname").getAsString() : "";
+                String status = obj.has("status") ? obj.get("status").getAsString() : "";
+                String score = obj.has("score") ? obj.get("score").getAsString() : "0";
+                dsNguoiChoi.add(new String[]{name, status, score});
             }
+        } catch (Exception e) {
+            System.err.println("Lỗi parse JSON Danh Sách Người Chơi: " + e.getMessage());
+        }
+    }
+
+    public void capNhatLichSuDau(String jsonString) {
+        dsLichSu.clear();
+        if (jsonString == null || jsonString.isEmpty()) return;
+        try {
+            JsonArray array = JsonParser.parseString(jsonString).getAsJsonArray();
+            for (JsonElement el : array) {
+                JsonObject obj = el.getAsJsonObject();
+                String id = obj.has("matchId") ? obj.get("matchId").getAsString() : "";
+                String opp = obj.has("opponentNickname") ? obj.get("opponentNickname").getAsString() : "";
+                String result = obj.has("result") ? obj.get("result").getAsString() : "";
+                String time = obj.has("playedAt") ? obj.get("playedAt").getAsString() : "";
+                dsLichSu.add(new String[]{id, opp, result, time});
+            }
+        } catch (Exception e) {
+            System.err.println("Lỗi parse JSON Lịch Sử: " + e.getMessage());
+        }
+    }
+
+    public void capNhatBangXepHang(String jsonString) {
+        dsXepHang.clear();
+        if (jsonString == null || jsonString.isEmpty()) return;
+        try {
+            JsonArray array = JsonParser.parseString(jsonString).getAsJsonArray();
+            int rank = 1;
+            for (JsonElement el : array) {
+                JsonObject obj = el.getAsJsonObject();
+                String name = obj.has("nickname") ? obj.get("nickname").getAsString() : "";
+                String wins = obj.has("wins") ? obj.get("wins").getAsString() : "0";
+                String losses = obj.has("losses") ? obj.get("losses").getAsString() : "0";
+                String score = obj.has("score") ? obj.get("score").getAsString() : "0";
+                
+                dsXepHang.add(new String[]{String.valueOf(rank), name, wins, losses, score});
+                
+                if (name.equalsIgnoreCase(currentUsername)) {
+                    currentScore = score;
+                    Platform.runLater(() -> lblScore.setText("★ " + currentScore));
+                }
+                rank++;
+            }
+        } catch (Exception e) {
+            System.err.println("Lỗi parse JSON Bảng Xếp Hạng: " + e.getMessage());
         }
     }
 
@@ -456,11 +467,13 @@ public class LobbyGUI extends Application {
 
         apDungStyle(alertChoXacNhan);
 
-        SocketClientManager.guiTinNhan("INVITE|" + tenDoiThu);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("target", tenDoiThu);
+        SocketClientManager.guiTinNhan(new MessageDTO("INVITE", payload));
 
         Optional<ButtonType> result = alertChoXacNhan.showAndWait();
         if (result.isPresent() && result.get() == btnHuy) {
-            SocketClientManager.guiTinNhan("CANCEL_INVITE|" + tenDoiThu);
+            SocketClientManager.guiTinNhan(new MessageDTO("CANCEL_INVITE", payload));
             isWaiting = false;
         }
     }
@@ -469,8 +482,11 @@ public class LobbyGUI extends Application {
         boolean dangChoNguoiKhac = isWaiting || (alertChoXacNhan != null && alertChoXacNhan.isShowing());
         boolean dangXemLoiMoi = (alertNhanLoiMoi != null && alertNhanLoiMoi.isShowing());
 
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("challenger", nguoiMoi);
+
         if (dangChoNguoiKhac || dangXemLoiMoi) {
-            SocketClientManager.guiTinNhan("INVITE_REJECT|" + nguoiMoi);
+            SocketClientManager.guiTinNhan(new MessageDTO("INVITE_REJECT", payload));
             return; 
         }
 
@@ -489,14 +505,12 @@ public class LobbyGUI extends Application {
 
         Optional<ButtonType> ketQua = alertNhanLoiMoi.showAndWait();
         
-        if (biHuyBo) {
-            return; 
-        }
+        if (biHuyBo) return; 
 
         if (ketQua.isPresent() && ketQua.get() == btnDongY) {
-            SocketClientManager.guiTinNhan("INVITE_ACCEPT|" + nguoiMoi);
+            SocketClientManager.guiTinNhan(new MessageDTO("INVITE_ACCEPT", payload));
         } else {
-            SocketClientManager.guiTinNhan("INVITE_REJECT|" + nguoiMoi);
+            SocketClientManager.guiTinNhan(new MessageDTO("INVITE_REJECT", payload));
         }
     }
 
@@ -539,7 +553,6 @@ public class LobbyGUI extends Application {
             alertChoXacNhan.close();
             isWaiting = false; 
         }
-
         if (primaryStage != null) {
             primaryStage.close();
         }

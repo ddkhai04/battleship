@@ -1,7 +1,9 @@
 package com.mycompany.battleship.server;
 
+import com.google.gson.Gson;
 import com.mycompany.battleship.common.model.Emote;
 import com.mycompany.battleship.common.model.GameException;
+import com.mycompany.battleship.common.model.MessageDTO;
 import com.mycompany.battleship.common.model.MissileType;
 import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.User;
@@ -13,6 +15,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 import org.mindrot.jbcrypt.BCrypt;
 
 public class ClientHandler implements Runnable {
@@ -22,6 +26,7 @@ public class ClientHandler implements Runnable {
     private PrintWriter out;
     private String loggedInUsername = null;
     private User currentUser = null;
+    private Gson gson = new Gson();
 
     public ClientHandler(Socket socket) {
         this.socket = socket;
@@ -44,24 +49,29 @@ public class ClientHandler implements Runnable {
 
             String request;
             while ((request = in.readLine()) != null) {
-                if (request.startsWith("LOGIN|") || request.startsWith("REGISTER|")) {
-                    String[] tempParts = request.split("\\|");
-                    if (tempParts.length >= 2) {
-                        System.out.println("Received auth command: " + tempParts[0] + " from account: " + tempParts[1]);
-                    }
-                } else {
-                    System.out.println("Received: " + request);
+                System.out.println("Received: " + request);
+
+                // Parse chuỗi JSON thành đối tượng MessageDTO
+                MessageDTO msg;
+                try {
+                    msg = gson.fromJson(request, MessageDTO.class);
+                } catch (Exception e) {
+                    System.out.println("Invalid JSON format: " + request);
+                    continue;
                 }
 
-                String[] parts = request.split("\\|");
-                String command = parts[0];
+                String command = msg.getCommand();
+                Map<String, Object> payload = null;
+                if (msg.getPayload() != null) {
+                    payload = (Map<String, Object>) msg.getPayload();
+                }
 
                 switch (command) {
                     case "LOGIN":
-                        if (parts.length >= 3) handleLogin(parts[1], parts[2]);
+                        if (payload != null) handleLogin((String) payload.get("username"), (String) payload.get("password"));
                         break;
                     case "REGISTER":
-                        if (parts.length >= 3) handleRegister(parts[1], parts[2]);
+                        if (payload != null) handleRegister((String) payload.get("username"), (String) payload.get("password"));
                         break;
                     case "LIST_PLAYERS":
                         handleListPlayers();
@@ -73,30 +83,27 @@ public class ClientHandler implements Runnable {
                         handleMatchHistory();
                         break;   
                     case "INVITE":
-                        if (parts.length >= 2) handleInvite(parts[1]);
+                        if (payload != null) handleInvite((String) payload.get("target"));
                         break;
                     case "CANCEL_INVITE":
-                        if (parts.length >= 2) handleCancelInvite(parts[1]);
+                        if (payload != null) handleCancelInvite((String) payload.get("target"));
                         break;
                     case "ACCEPT":
                     case "INVITE_ACCEPT":
-                        if (parts.length >= 2) handleAccept(parts[1]);
+                        if (payload != null) handleAccept((String) payload.get("challenger"));
                         break;
                     case "REJECT":
                     case "INVITE_REJECT":
-                        if (parts.length >= 2) handleReject(parts[1]);
+                        if (payload != null) handleReject((String) payload.get("challenger"));
                         break;
                     case "FIRE":
-                        handleFire(parts);
+                        if (payload != null) handleFire(payload);
                         break;
                     case "CHAT":
-                        if (parts.length >= 2) {
-                            String chatContent = request.substring(request.indexOf('|') + 1);
-                            handleChat(chatContent);
-                        }
+                        if (payload != null) handleChat((String) payload.get("text"));
                         break;
                     case "EMOTE":
-                        if (parts.length >= 2) handleEmote(parts[1]);
+                        if (payload != null) handleEmote((String) payload.get("emoteName"));
                         break;
                     case "REMATCH":
                         handleRematch();
@@ -135,7 +142,7 @@ public class ClientHandler implements Runnable {
 
         if (user != null && BCrypt.checkpw(password, user.getPassword())) {
             if (BattleshipServer.onlineUsers.containsKey(username)) {
-                out.println("LOGIN_FAIL|This account is already logged in elsewhere.");
+                sendMessage(new MessageDTO("LOGIN_FAIL", "This account is already logged in elsewhere."));
                 return;
             }
 
@@ -146,17 +153,25 @@ public class ClientHandler implements Runnable {
             userDAO.updateStatus(user.getId(), "ONLINE");
             this.currentUser.setStatus("ONLINE");
 
-            out.println("LOGIN_OK|" + username + "|" + user.getScore());
+            Map<String, Object> payloadData = new HashMap<>();
+            payloadData.put("username", username);
+            payloadData.put("score", user.getScore());
+            
+            // Xử lý an toàn tránh NullPointerException nếu role trong database bị null
+            String roleStr = (user.getRole() != null) ? user.getRole().toString() : "USER";
+            payloadData.put("role", roleStr);
+
+            sendMessage(new MessageDTO("LOGIN_OK", payloadData));
             BattleshipServer.broadcastLobbyList();
         } else {
-            out.println("LOGIN_FAIL|Invalid username or password.");
+            sendMessage(new MessageDTO("LOGIN_FAIL", "Invalid username or password."));
         }
     }
 
     private void handleRegister(String username, String password) {
         UserDAO userDAO = new UserDAO();
         if (userDAO.checkUsernameExist(username)) {
-            out.println("REGISTER_FAIL|Username already exists.");
+            sendMessage(new MessageDTO("REGISTER_FAIL", "Username already exists."));
             return;
         }
 
@@ -165,73 +180,63 @@ public class ClientHandler implements Runnable {
         newUser.setUsername(username);
         newUser.setPassword(hashedPassword);
         newUser.setNickname(username);
+        // Tạm gán Role rỗng hoặc default trước khi insert tùy logic DAO của bạn
 
         if (userDAO.registerUser(newUser)) {
-            out.println("REGISTER_OK");
+            sendMessage(new MessageDTO("REGISTER_OK", null));
         } else {
-            out.println("REGISTER_FAIL|Database system error.");
+            sendMessage(new MessageDTO("REGISTER_FAIL", "Database system error."));
         }
     }
 
     public void handleListPlayers() {
         UserDAO userDAO = new UserDAO();
         java.util.List<UserDTO> lobbyUsers = userDAO.getLobbyUsers();
-
-        if (lobbyUsers.isEmpty()) {
-            out.println("PLAYER_LIST|");
-            return;
-        }
-        StringBuilder sb = new StringBuilder("PLAYER_LIST|");
-        for (int i = 0; i < lobbyUsers.size(); i++) {
-            UserDTO u = lobbyUsers.get(i);
-            String realStatus = u.getStatus();
+        
+        for (UserDTO u : lobbyUsers) {
             if (!BattleshipServer.onlineUsers.containsKey(u.getNickname())) {
-                realStatus = "OFFLINE";
-            }
-            sb.append(u.getNickname()).append(",")
-              .append(realStatus).append(",")
-              .append(u.getScore());
-            if (i < lobbyUsers.size() - 1) {
-                sb.append(";");
+                u.setStatus("OFFLINE");
             }
         }
-        out.println(sb.toString());
+        
+        // Gửi thẳng List Object, Gson sẽ tự động convert thành mảng JSON
+        sendMessage(new MessageDTO("PLAYER_LIST", lobbyUsers));
     }
 
     private void handleInvite(String targetUser) {
         if ("IN_GAME".equals(this.currentUser.getStatus())) {
-            out.println("INVITE_FAIL|You are currently in a game, cannot send invites.");
+            sendMessage(new MessageDTO("INVITE_FAIL", "You are currently in a game, cannot send invites."));
             return;
         }
         ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
         if (targetHandler != null && targetHandler.currentUser != null) {
             if ("IN_GAME".equals(targetHandler.currentUser.getStatus())) {
-                out.println("INVITE_FAIL|Player " + targetUser + " is busy in another match.");
+                sendMessage(new MessageDTO("INVITE_FAIL", "Player " + targetUser + " is busy in another match."));
                 return;
             }
-            targetHandler.sendMessage("INVITE_FROM|" + this.loggedInUsername);
+            targetHandler.sendMessage(new MessageDTO("INVITE_FROM", this.loggedInUsername));
         } else {
-            out.println("INVITE_FAIL|Player " + targetUser + " is not online.");
+            sendMessage(new MessageDTO("INVITE_FAIL", "Player " + targetUser + " is not online."));
         }
     }
 
     private void handleCancelInvite(String targetUser) {
         ClientHandler targetHandler = BattleshipServer.onlineUsers.get(targetUser);
         if (targetHandler != null) {
-            targetHandler.sendMessage("INVITE_CANCELLED|" + this.loggedInUsername);
+            targetHandler.sendMessage(new MessageDTO("INVITE_CANCELLED", this.loggedInUsername));
         }
     }
 
     private void handleAccept(String challengerUsername) {
         if ("IN_GAME".equals(this.currentUser.getStatus())) {
-            out.println("ERROR|You are in another match, cannot join this one.");
+            sendMessage(new MessageDTO("ERROR", "You are in another match, cannot join this one."));
             return;
         }
         ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
 
         if (challengerHandler != null && challengerHandler.currentUser != null && this.currentUser != null) {
             if ("IN_GAME".equals(challengerHandler.currentUser.getStatus())) {
-                out.println("ERROR|The challenger has joined another match.");
+                sendMessage(new MessageDTO("ERROR", "The challenger has joined another match."));
                 return;
             }
 
@@ -254,53 +259,49 @@ public class ClientHandler implements Runnable {
                 userDAO.updateStatus(challengerHandler.currentUser.getId(), "ONLINE");
                 this.currentUser.setStatus("ONLINE");
                 challengerHandler.currentUser.setStatus("ONLINE");
-                out.println("ERROR|" + e.getMessage());
-                challengerHandler.sendMessage("ERROR|" + e.getMessage());
+                sendMessage(new MessageDTO("ERROR", e.getMessage()));
+                challengerHandler.sendMessage(new MessageDTO("ERROR", e.getMessage()));
                 return;
             }
-
             BattleshipServer.broadcastLobbyList();
         } else {
-            out.println("ERROR|The challenger has left or is invalid.");
+            sendMessage(new MessageDTO("ERROR", "The challenger has left or is invalid."));
         }
     }
 
     private void handleReject(String challengerUsername) {
         ClientHandler challengerHandler = BattleshipServer.onlineUsers.get(challengerUsername);
         if (challengerHandler != null) {
-            challengerHandler.sendMessage("REJECT_FROM|" + this.loggedInUsername);
+            challengerHandler.sendMessage(new MessageDTO("REJECT_FROM", this.loggedInUsername));
         }
     }
 
-    private void handleFire(String[] parts) {
+    private void handleFire(Map<String, Object> payload) {
         if (this.loggedInUsername == null) return;
         GameRoom room = BattleshipServer.gameManager.findByPlayer(this.loggedInUsername);
         if (room == null) {
-            sendMessage("GAME_ERROR|Not currently in any active match.");
+            sendMessage(new MessageDTO("GAME_ERROR", "Not currently in any active match."));
             return;
         }
-        if (parts.length < 2) {
-            sendMessage("GAME_ERROR|Invalid FIRE syntax: FIRE|<MISSILE_TYPE>|<ROW>|<COL>");
-            return;
-        }
-
+        
         try {
-            MissileType type = MissileType.valueOf(parts[1].toUpperCase());
+            String typeStr = (String) payload.get("type");
+            MissileType type = MissileType.valueOf(typeStr.toUpperCase());
             Point target = null;
+            
             if (type.needsTarget()) {
-                if (parts.length < 4) {
-                    sendMessage("GAME_ERROR|Missing target coordinates.");
+                if (!payload.containsKey("row") || !payload.containsKey("col")) {
+                    sendMessage(new MessageDTO("GAME_ERROR", "Missing target coordinates."));
                     return;
                 }
-                int r = Integer.parseInt(parts[2]);
-                int c = Integer.parseInt(parts[3]);
+                // Gson tự động parse số liệu từ JSON thành Double
+                int r = ((Double) payload.get("row")).intValue();
+                int c = ((Double) payload.get("col")).intValue();
                 target = new Point(r, c);
             }
             room.fire(this.loggedInUsername, type, target);
-        } catch (IllegalArgumentException e) {
-            sendMessage("GAME_ERROR|Unknown missile type or bad coordinate.");
-        } catch (GameException e) {
-            sendMessage("GAME_ERROR|" + e.getMessage());
+        } catch (Exception e) {
+            sendMessage(new MessageDTO("GAME_ERROR", "Unknown missile type or bad coordinate."));
         }
     }
 
@@ -311,7 +312,7 @@ public class ClientHandler implements Runnable {
         try {
             room.sendChat(this.loggedInUsername, text);
         } catch (GameException e) {
-            sendMessage("CHAT_ERROR|" + e.getMessage());
+            sendMessage(new MessageDTO("CHAT_ERROR", e.getMessage()));
         }
     }
 
@@ -323,9 +324,9 @@ public class ClientHandler implements Runnable {
             Emote emote = Emote.valueOf(emoteName.toUpperCase());
             room.sendEmote(this.loggedInUsername, emote);
         } catch (IllegalArgumentException e) {
-            sendMessage("EMOTE_ERROR|Invalid emote name: " + emoteName);
+            sendMessage(new MessageDTO("EMOTE_ERROR", "Invalid emote name: " + emoteName));
         } catch (GameException e) {
-            sendMessage("EMOTE_ERROR|" + e.getMessage());
+            sendMessage(new MessageDTO("EMOTE_ERROR", e.getMessage()));
         }
     }
 
@@ -336,7 +337,7 @@ public class ClientHandler implements Runnable {
         try {
             room.requestRematch(this.loggedInUsername);
         } catch (GameException e) {
-            sendMessage("GAME_ERROR|" + e.getMessage());
+            sendMessage(new MessageDTO("GAME_ERROR", e.getMessage()));
         }
     }
 
@@ -348,95 +349,52 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public void sendMessage(String message) {
-        if (out != null) {
-            out.println(message);
-        }
-    }
-    
     private void handleLeaderboard() {
         com.mycompany.battleship.server.dao.UserDAO userDAO = new com.mycompany.battleship.server.dao.UserDAO();
         java.util.List<com.mycompany.battleship.common.model.UserDTO> topPlayers = userDAO.getLeaderboard(50); 
-        
-        if (topPlayers.isEmpty()) {
-            out.println("RANK_LIST|");
-            return;
-        }
-        
-        StringBuilder sb = new StringBuilder("RANK_LIST|");
-        int rank = 1;
-        for (int i = 0; i < topPlayers.size(); i++) {
-            com.mycompany.battleship.common.model.UserDTO u = topPlayers.get(i);
-            sb.append(rank).append(",")
-              .append(u.getNickname()).append(",")
-              .append(u.getWins()).append(",") 
-              .append(u.getLosses()).append(",")
-              .append(u.getScore());
-              
-            if (i < topPlayers.size() - 1) {
-                sb.append(";");
-            }
-            rank++;
-        }
-        out.println(sb.toString());
+        sendMessage(new MessageDTO("RANK_LIST", topPlayers));
     }
 
     private void handleMatchHistory() {
         if (this.currentUser == null) {
-            out.println("HISTORY_LIST|");
+            sendMessage(new MessageDTO("HISTORY_LIST", new java.util.ArrayList<>()));
             return;
         }
         
         com.mycompany.battleship.server.dao.MatchDAO matchDAO = new com.mycompany.battleship.server.dao.MatchDAO();
         java.util.List<com.mycompany.battleship.common.model.MatchHistoryDTO> historyList = matchDAO.getMatchHistory(this.currentUser.getId());
         
-        if (historyList.isEmpty()) {
-            out.println("HISTORY_LIST|");
-            return;
-        }
-        
-        StringBuilder sb = new StringBuilder("HISTORY_LIST|");
-        for (int i = 0; i < historyList.size(); i++) {
-            com.mycompany.battleship.common.model.MatchHistoryDTO dto = historyList.get(i);
-            
-            String timeStr = "";
-            if(dto.getPlayedAt() != null) {
-                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm");
-                sdf.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
-                timeStr = sdf.format(dto.getPlayedAt());
-            }
-
-            sb.append(dto.getMatchId()).append(",")
-              .append(dto.getOpponentNickname()).append(",")
-              .append(dto.getResult()).append(",") 
-              .append(timeStr);
-              
-            if (i < historyList.size() - 1) {
-                sb.append(";");
-            }
-        }
-        out.println(sb.toString());
+        // Formatter ngày tháng trực tiếp trên object DTO trước khi gửi nếu cần, hoặc để Client tự format
+        sendMessage(new MessageDTO("HISTORY_LIST", historyList));
     }
     
     private void handleRejectRematch() {
         if (this.loggedInUsername == null) return;
-        
-        // Tìm phòng chơi hiện tại của người dùng
         GameRoom room = BattleshipServer.gameManager.findByPlayer(this.loggedInUsername);
         
         if (room != null) {
-            // Xác định tên người đối thủ còn lại trong phòng dựa vào inviter và invitee của GameRoom
             String opponent = room.getInviterId().equals(this.loggedInUsername) ? room.getInviteeId() : room.getInviterId();
-            
             ClientHandler oppHandler = BattleshipServer.onlineUsers.get(opponent);
             if (oppHandler != null) {
-                // Báo cho đối thủ biết là đã bị từ chối tái đấu
-                oppHandler.sendMessage("REMATCH_DECLINED|");
+                oppHandler.sendMessage(new MessageDTO("REMATCH_DECLINED", null));
             }
-            
-            // Cho người chơi rời phòng
             room.leave(this.loggedInUsername);
         }
     }
+
+    // --- CÁC HÀM GỬI TIN NHẮN TỚI CLIENT ---
+
+    // Hàm mới: Gửi tin nhắn qua cấu trúc MessageDTO (JSON)
+    public void sendMessage(MessageDTO message) {
+        if (out != null) {
+            out.println(gson.toJson(message));
+        }
+    }
     
+    // Hàm cũ: Nạp chồng để tương thích ngược với ServerGameEventListener (sẽ xóa sau khi đồng bộ toàn bộ)
+    public void sendMessage(String legacyMessage) {
+        if (out != null) {
+            out.println(legacyMessage);
+        }
+    }
 }
