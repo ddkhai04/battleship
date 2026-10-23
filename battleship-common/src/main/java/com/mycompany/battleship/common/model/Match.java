@@ -38,11 +38,11 @@ public class Match implements Serializable {
         this.winner_id = winer_id;
         this.loser_id = loser_id;
         this.playedAt = playedAt;
-        this.status = MatchStatus.FINISHED; // Trận từ code cũ mặc định đã hoàn thành
+        this.status = MatchStatus.FINISHED; 
         this.duration_seconds = 0;
     }
 
-    // Constructor mới: đầy đủ các trường mới và hỗ trợ null cho winner/loser
+
     public Match(int id, int player1_id, int player2_id, Integer winner_id, Integer loser_id, Timestamp playedAt, MatchStatus status, int duration_seconds) {
         this.id = id;
         this.player1_id = player1_id;
@@ -78,7 +78,7 @@ public class Match implements Serializable {
         this.player2_id = player2_id;
     }
 
-    // Các phương thức getter/setter theo code cũ (trả về Integer để tránh lỗi NullPointerException khi trận chưa kết thúc)
+
     public Integer getWiner_id() {
         return winner_id;
     }
@@ -87,12 +87,12 @@ public class Match implements Serializable {
         this.winner_id = winer_id;
     }
 
-    // Overload nhận int cho code cũ
+
     public void setWiner_id(int winer_id) {
         this.winner_id = winer_id;
     }
 
-    // Bổ sung thêm chuẩn chính tả đúng để tiện dùng về sau
+
     public Integer getWinner_id() {
         return winner_id;
     }
