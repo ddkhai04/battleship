@@ -6,18 +6,16 @@ import java.sql.Timestamp;
 public class User implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    public enum Role {
+        USER, ADMIN
+    }
+
+    
     private int id;
     private String username;
-    private String password; // Lưu password hash
+    private String password;
     private String nickname;
     private String status;
-    private int score;
-    private int wins;
-    private int losses;
-    private Timestamp createdAt;
-
-    public User() {
-    }
 
     public User(int id, String username, String password, String nickname, String status, int score, int wins, int losses, Timestamp createdAt) {
         this.id = id;
@@ -29,6 +27,38 @@ public class User implements Serializable {
         this.wins = wins;
         this.losses = losses;
         this.createdAt = createdAt;
+    }
+    private Role role;
+    private int score;
+    private int wins;
+    private int losses;
+    private Timestamp createdAt;
+
+    public User() {}
+
+    
+
+    public User(int id, String username, String password, String nickname, Role role, String status, int score, int wins, int losses, Timestamp createdAt) {
+        this.id = id;
+        this.username = username;
+        this.password = password;
+        this.nickname = nickname;
+        this.role = role;
+        this.status = status;
+        this.score = score;
+        this.wins = wins;
+        this.losses = losses;
+        this.createdAt = createdAt;
+    }
+
+    // Getters and Setters
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public int getId() {
@@ -63,12 +93,12 @@ public class User implements Serializable {
         this.nickname = nickname;
     }
 
-    public String getStatus() {
-        return status;
+    public Role getRole() {
+        return role;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setRole(Role role) {
+        this.role = role;
     }
 
     public int getScore() {
@@ -102,4 +132,5 @@ public class User implements Serializable {
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
+
 }
