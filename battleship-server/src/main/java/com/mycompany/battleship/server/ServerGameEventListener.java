@@ -1,26 +1,36 @@
 package com.mycompany.battleship.server;
 
+import com.google.gson.Gson;
 import com.mycompany.battleship.common.model.ChatMessage;
 import com.mycompany.battleship.common.model.EmoteEvent;
 import com.mycompany.battleship.common.model.GameResult;
 import com.mycompany.battleship.common.model.MessageDTO;
+import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.ShotResult;
 import com.mycompany.battleship.common.model.User;
 import com.mycompany.battleship.server.dao.MatchDAO;
 import com.mycompany.battleship.server.dao.UserDAO;
 import com.mycompany.battleship.server.game.GameEventListener;
 import com.mycompany.battleship.server.game.GameRoom;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ServerGameEventListener implements GameEventListener {
+
+    private final Map<String, Integer> roomMatchIdMap = new ConcurrentHashMap<>();
+    private final Map<String, Long> roomStartTimeMap = new ConcurrentHashMap<>();
+    private final Map<String, Integer> roomTurnCountMap = new ConcurrentHashMap<>();
+    private final Gson gson = new Gson();
+    private final MatchDAO matchDAO = new MatchDAO();
+    private final UserDAO userDAO = new UserDAO();
 
     private ClientHandler getHandler(String username) {
         if (username == null) return null;
         return BattleshipServer.onlineUsers.get(username);
     }
 
-    // Đổi kiểu tham số thành MessageDTO
     private void sendToBoth(GameRoom room, MessageDTO message) {
         ClientHandler hA = getHandler(room.getInviterId());
         ClientHandler hB = getHandler(room.getInviteeId());
@@ -28,10 +38,37 @@ public class ServerGameEventListener implements GameEventListener {
         if (hB != null) hB.sendMessage(message);
     }
 
+    private String formatCoordinate(Point p) {
+        if (p == null) return "A1";
+        char rowChar = (char) ('A' + p.getRow());
+        return "" + rowChar + (p.getCol() + 1);
+    }
+
     @Override
     public void onMatchPrepared(GameRoom room) {
         ClientHandler hA = getHandler(room.getInviterId());
         ClientHandler hB = getHandler(room.getInviteeId());
+
+        User p1 = userDAO.checkLogin(room.getInviterId());
+        User p2 = userDAO.checkLogin(room.getInviteeId());
+
+        if (p1 != null && p2 != null) {
+            // 1. Tạo match ở trạng thái ONGOING trong DB
+            int matchId = matchDAO.createMatch(p1.getId(), p2.getId());
+            if (matchId > 0) {
+                roomMatchIdMap.put(room.getRoomId(), matchId);
+                roomStartTimeMap.put(room.getRoomId(), System.currentTimeMillis());
+                roomTurnCountMap.put(room.getRoomId(), 1);
+
+                // 2. Lưu sơ đồ xếp tàu (ship_data) của 2 người chơi vào match_boards
+                try {
+                    matchDAO.saveMatchBoard(matchId, p1.getId(), gson.toJson(room.viewFor(room.getInviterId())));
+                    matchDAO.saveMatchBoard(matchId, p2.getId(), gson.toJson(room.viewFor(room.getInviteeId())));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
 
         if (hA != null) {
             Map<String, Object> payloadA = new HashMap<>();
@@ -65,16 +102,41 @@ public class ServerGameEventListener implements GameEventListener {
 
     @Override
     public void onShotResolved(GameRoom room, ShotResult result) {
-        // Gửi thẳng đối tượng ShotResult, ClientHandler sẽ tự parse thành JSON
         sendToBoth(room, new MessageDTO("SHOT_RESULT", result));
 
         ClientHandler hA = getHandler(room.getInviterId());
         ClientHandler hB = getHandler(room.getInviteeId());
-        if (hA != null) {
-            hA.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviterId())));
-        }
-        if (hB != null) {
-            hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
+        if (hA != null) hA.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviterId())));
+        if (hB != null) hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
+
+        // Lưu thông tin lượt bắn vào match_turns và cập nhật thống kê tọa độ/độ chính xác
+        Integer matchId = roomMatchIdMap.get(room.getRoomId());
+        if (matchId != null) {
+            User shooter = userDAO.checkLogin(result.getShooterId());
+            if (shooter != null) {
+                int turnNumber = roomTurnCountMap.getOrDefault(room.getRoomId(), 1);
+                roomTurnCountMap.put(room.getRoomId(), turnNumber + 1);
+
+                // 1. Toạ độ bắn (với đạn mưa RAIN thì target là null)
+                String coordinate = (result.getTarget() != null) ? formatCoordinate(result.getTarget()) : "RAIN";
+                // 2. Kiểm tra bắn trúng (trúng trực tiếp hoặc có ít nhất 1 ô trong vùng nổ trúng tàu)
+                boolean isHit = result.isDirectHit() || result.getCells().stream().anyMatch(ShotResult.CellResult::isHit);
+                // 3. Kiểm tra tàu chìm thông qua danh sách getSunkShips()
+                java.util.List<com.mycompany.battleship.common.model.Ship> sunkShips = result.getSunkShips();
+                boolean isSunk = !sunkShips.isEmpty();
+                String resultStr = isSunk ? "SUNK" : (isHit ? "HIT" : "MISS");
+                // 4. Lấy loại tàu bị chìm nếu có
+                String sunkType = null;
+                if (isSunk) {
+                    com.mycompany.battleship.common.model.Ship ship = sunkShips.get(0);
+                    // Dùng ship.toString() để an toàn với mọi class/enum Ship, 
+                    // hoặc ship.getType().name() / ship.getName() nếu Ship có getter tương ứng
+                    sunkType = ship.toString();
+                }
+                // 5. Lưu vào database
+                matchDAO.saveMatchTurn(matchId, turnNumber, shooter.getId(), coordinate, resultStr, sunkType);
+                matchDAO.recordShotStats(shooter.getId(), coordinate, isHit);
+            }
         }
     }
 
@@ -99,20 +161,25 @@ public class ServerGameEventListener implements GameEventListener {
             loserHandler.sendMessage(new MessageDTO("GAME_OVER", losePayload));
         }
 
-        // Lưu kết quả trận đấu vào MySQL Database
-        UserDAO userDAO = new UserDAO();
+        // Tính thời lượng trận đấu (duration_seconds) và lưu vào database
+        Integer matchId = roomMatchIdMap.remove(room.getRoomId());
+        Long startTime = roomStartTimeMap.remove(room.getRoomId());
+        roomTurnCountMap.remove(room.getRoomId());
+
+        int durationSeconds = 0;
+        if (startTime != null) {
+            durationSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
+        }
+
         User winnerUser = userDAO.checkLogin(result.getWinnerId());
         User loserUser = userDAO.checkLogin(result.getLoserId());
 
         if (winnerUser != null && loserUser != null) {
-            MatchDAO matchDAO = new MatchDAO();
-            matchDAO.saveMatchResult(
-                    winnerUser.getId(),
-                    loserUser.getId(),
-                    winnerUser.getId(),
-                    loserUser.getId(),
-                    GameResult.WIN_POINTS
-            );
+            if (matchId != null) {
+                matchDAO.finishMatch(matchId, winnerUser.getId(), loserUser.getId(), GameResult.WIN_POINTS, durationSeconds);
+            } else {
+                matchDAO.saveMatchResult(winnerUser.getId(), loserUser.getId(), winnerUser.getId(), loserUser.getId(), GameResult.WIN_POINTS, durationSeconds);
+            }
 
             userDAO.updateStatus(winnerUser.getId(), "ONLINE");
             userDAO.updateStatus(loserUser.getId(), "ONLINE");
@@ -143,6 +210,12 @@ public class ServerGameEventListener implements GameEventListener {
 
     @Override
     public void onPlayerLeft(GameRoom room, String playerId) {
+        Integer matchId = roomMatchIdMap.get(room.getRoomId());
+        Long startTime = roomStartTimeMap.get(room.getRoomId());
+        if (matchId != null && startTime != null) {
+            int durationSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
+            matchDAO.abortMatch(matchId, durationSeconds);
+        }
         sendToBoth(room, new MessageDTO("PLAYER_LEFT", playerId));
     }
 
@@ -166,6 +239,9 @@ public class ServerGameEventListener implements GameEventListener {
 
     @Override
     public void onRoomClosed(GameRoom room) {
+        roomMatchIdMap.remove(room.getRoomId());
+        roomStartTimeMap.remove(room.getRoomId());
+        roomTurnCountMap.remove(room.getRoomId());
         sendToBoth(room, new MessageDTO("ROOM_CLOSED", null));
     }
 }

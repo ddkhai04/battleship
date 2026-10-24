@@ -20,7 +20,7 @@ import javafx.stage.Stage;
 
 public class SocketClientManager {
 
-    public static final String SERVER_IP = "26.242.14.255";
+    public static final String SERVER_IP = "127.0.0.1";
     public static final int SERVER_PORT = 2209;
 
     private static Socket socket;
@@ -76,19 +76,7 @@ public class SocketClientManager {
         }
     }
 
-    // Giữ lại hàm cũ để tránh lỗi các màn hình chưa kịp chuyển đổi sang JSON
-    public static void guiTinNhan(String noiDung) {
-        try {
-            if (out == null) return;
-            out.write(noiDung);
-            out.newLine();
-            out.flush();
-            System.out.println("[GUI RAW] " + noiDung);
-        } catch (IOException e) {
-            System.out.println("[LOI] Gui du lieu that bai: " + e.getMessage());
-        }
-    }
-
+    
     private static void langNgheServer() {
         try {
             while (true) {
@@ -105,49 +93,26 @@ public class SocketClientManager {
         }
     }
 
-    private static void xuLyTinNhan(String duLieu) {
-        String lenh = "";
-        Object payloadObj = null;
-        boolean isJsonFormat = false;
-
-        // Ưu tiên parse theo MessageDTO
+private static void xuLyTinNhan(String duLieu) {
+        MessageDTO msg;
         try {
-            if (duLieu.trim().startsWith("{")) {
-                MessageDTO msg = GSON.fromJson(duLieu, MessageDTO.class);
-                lenh = msg.getCommand();
-                payloadObj = msg.getPayload();
-                isJsonFormat = true;
-            }
+            msg = GSON.fromJson(duLieu, MessageDTO.class);
+            if (msg == null || msg.getCommand() == null) return;
         } catch (Exception e) {
-            isJsonFormat = false;
+            System.out.println("[LOI PARSE JSON] " + duLieu);
+            return;
         }
 
-        // Fallback đọc chuỗi cũ nếu ServerGameEventListener chưa kịp sửa
-        String[] parts = null;
-        if (!isJsonFormat) {
-            parts = duLieu.split("\\|", 2);
-            lenh = parts[0];
-        }
-
-        final String command = lenh;
-        final Object payload = payloadObj;
-        final boolean finalIsJson = isJsonFormat;
-        final String rawData = duLieu;
-        final String[] stringParts = parts;
-
-        // Tiện ích chuyển payload sang JSON String cho các màn hình tự Parse
-        final String payloadJson = finalIsJson ? GSON.toJson(payload) : "";
+        final String command = msg.getCommand();
+        final Object payload = msg.getPayload();
+        final String payloadJson = payload != null ? GSON.toJson(payload) : "";
 
         switch (command) {
             case "LOGIN_OK":
                 Platform.runLater(() -> {
-                    if (loginScreen != null) {
-                        if (finalIsJson && payload != null) {
-                            JsonObject pObj = JsonParser.parseString(payloadJson).getAsJsonObject();
-                            loginScreen.dangNhapThanhCong(pObj);
-                        } else if (stringParts != null) {
-                            loginScreen.dangNhapThanhCong(stringParts[1].split("\\|"));
-                        }
+                    if (loginScreen != null && payload != null) {
+                        JsonObject pObj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                        loginScreen.dangNhapThanhCong(pObj);
                     }
                 });
                 break;
@@ -155,8 +120,7 @@ public class SocketClientManager {
             case "LOGIN_FAIL":
                 Platform.runLater(() -> {
                     if (loginScreen != null) {
-                        String lyDo = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "Lỗi đăng nhập.");
-                        loginScreen.dangNhapThatBai(lyDo);
+                        loginScreen.dangNhapThatBai(payload != null ? payload.toString() : "Lỗi đăng nhập.");
                     }
                 });
                 break;
@@ -170,15 +134,14 @@ public class SocketClientManager {
             case "REGISTER_FAIL":
                 Platform.runLater(() -> {
                     if (registerScreen != null) {
-                        String lyDo = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "Lỗi đăng ký.");
-                        registerScreen.dangKyThatBai(lyDo);
+                        registerScreen.dangKyThatBai(payload != null ? payload.toString() : "Lỗi đăng ký.");
                     }
                 });
                 break;
 
             case "ADMIN_DATA":
                 Platform.runLater(() -> {
-                    if (adminScreen != null && finalIsJson) {
+                    if (adminScreen != null && payload != null) {
                         adminScreen.capNhatDuLieuAdmin(JsonParser.parseString(payloadJson).getAsJsonObject());
                     }
                 });
@@ -187,9 +150,7 @@ public class SocketClientManager {
             case "PLAYER_LIST":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        // Tạm thời truyền Json String để LobbyGUI tự xử lý
-                        String noiDung = finalIsJson ? payloadJson : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.capNhatDanhSachNguoiChoi(noiDung);
+                        lobbyScreen.capNhatDanhSachNguoiChoi(payloadJson);
                     }
                 });
                 break;
@@ -197,8 +158,7 @@ public class SocketClientManager {
             case "HISTORY_LIST":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String noiDung = finalIsJson ? payloadJson : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.capNhatLichSuDau(noiDung);
+                        lobbyScreen.capNhatLichSuDau(payloadJson);
                     }
                 });
                 break;
@@ -206,8 +166,7 @@ public class SocketClientManager {
             case "RANK_LIST":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String noiDung = finalIsJson ? payloadJson : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.capNhatBangXepHang(noiDung);
+                        lobbyScreen.capNhatBangXepHang(payloadJson);
                     }
                 });
                 break;
@@ -215,8 +174,7 @@ public class SocketClientManager {
             case "INVITE_FROM":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String nguoiMoi = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.nhanLoiThachDau(nguoiMoi);
+                        lobbyScreen.nhanLoiThachDau(payload != null ? payload.toString() : "");
                     }
                 });
                 break;
@@ -224,8 +182,7 @@ public class SocketClientManager {
             case "REJECT_FROM":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String nguoiTuChoi = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.loiMoiBiTuChoi(nguoiTuChoi);
+                        lobbyScreen.loiMoiBiTuChoi(payload != null ? payload.toString() : "");
                     }
                 });
                 break;
@@ -233,8 +190,7 @@ public class SocketClientManager {
             case "INVITE_CANCELLED":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String nguoiHuy = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        lobbyScreen.doiThuHuyLoiMoi(nguoiHuy);
+                        lobbyScreen.doiThuHuyLoiMoi(payload != null ? payload.toString() : "");
                     }
                 });
                 break;
@@ -242,35 +198,30 @@ public class SocketClientManager {
             case "INVITE_FAIL":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                        String lyDo = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "Lỗi gửi lời mời.");
-                        lobbyScreen.loiThachDauThatBai(lyDo);
+                        lobbyScreen.loiThachDauThatBai(payload != null ? payload.toString() : "Lỗi gửi lời mời.");
                     }
                 });
                 break;
 
             case "MATCH_START":
                 Platform.runLater(() -> {
-                    
                     if (gameStage != null) {
                         gameStage.close();
                     }
-                    
-                    // 2. Đóng hộp thoại "Đang chờ đối phương..." (nếu có)
                     if (waitingAlert != null) {
                         waitingAlert.close();
                         waitingAlert = null;
                     }
-                    
-                    String[] mParts = rawData.split("\\|");
-                    if (lobbyScreen != null) lobbyScreen.batDauTranDau(mParts);
 
                     gameRoomScreen = new GameRoomGUI();
                     gameStage = new Stage();
 
-                    String tenDoiThu = mParts.length > 2 ? mParts[2] : "Đối thủ";
-                    if (finalIsJson && payload != null) {
+                    String tenDoiThu = "Đối thủ";
+                    if (payload != null) {
                         JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
-                        tenDoiThu = obj.has("opponent") ? obj.get("opponent").getAsString() : "Đối thủ";
+                        if (obj.has("opponent")) {
+                            tenDoiThu = obj.get("opponent").getAsString();
+                        }
                     }
 
                     int diemCuaMinh = 0;
@@ -281,7 +232,6 @@ public class SocketClientManager {
                     gameRoomScreen.setPlayerNames(LobbyGUI.currentUsername, tenDoiThu);
                     gameRoomScreen.setPlayerScores(diemCuaMinh, 0);
 
-                    // Đã chuyển sang gửi MessageDTO JSON
                     gameRoomScreen.setOnAttackCellClicked((row, col) -> {
                         String weapon = gameRoomScreen.getSelectedWeapon();
                         Map<String, Object> fireData = new HashMap<>();
@@ -312,8 +262,7 @@ public class SocketClientManager {
             case "GAME_VIEW":
                 Platform.runLater(() -> {
                     if (gameRoomScreen != null) {
-                        String viewData = finalIsJson ? payloadJson : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        GameView view = GSON.fromJson(viewData, GameView.class);
+                        GameView view = GSON.fromJson(payloadJson, GameView.class);
                         gameRoomScreen.renderGameView(view);
                     }
                 });
@@ -321,8 +270,8 @@ public class SocketClientManager {
 
             case "COUNTDOWN":
                 Platform.runLater(() -> {
-                    if (gameRoomScreen != null) {
-                        int count = finalIsJson ? ((Double) payload).intValue() : (stringParts != null && stringParts.length > 1 ? Integer.parseInt(stringParts[1]) : 0);
+                    if (gameRoomScreen != null && payload != null) {
+                        int count = ((Double) payload).intValue();
                         gameRoomScreen.showCountdown(count);
                     }
                 });
@@ -330,18 +279,10 @@ public class SocketClientManager {
 
             case "TURN_START":
                 Platform.runLater(() -> {
-                    if (gameRoomScreen != null) {
-                        String turnPlayer = "";
-                        int seconds = 45;
-                        if (finalIsJson) {
-                            JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
-                            turnPlayer = obj.get("turnPlayer").getAsString();
-                            seconds = obj.get("seconds").getAsInt();
-                        } else if (stringParts != null && stringParts.length > 1) {
-                            String[] tParts = stringParts[1].split("\\|");
-                            turnPlayer = tParts[0];
-                            seconds = Integer.parseInt(tParts[1]);
-                        }
+                    if (gameRoomScreen != null && payload != null) {
+                        JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                        String turnPlayer = obj.get("turnPlayer").getAsString();
+                        int seconds = obj.get("seconds").getAsInt();
 
                         gameRoomScreen.hideCountdown();
                         boolean myTurn = turnPlayer.equals(LobbyGUI.currentUsername);
@@ -354,8 +295,7 @@ public class SocketClientManager {
             case "SHOT_RESULT":
                 Platform.runLater(() -> {
                     if (gameRoomScreen != null) {
-                        String shotData = finalIsJson ? payloadJson : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "");
-                        ShotResult shot = GSON.fromJson(shotData, ShotResult.class);
+                        ShotResult shot = GSON.fromJson(payloadJson, ShotResult.class);
                         gameRoomScreen.applyShotResult(shot);
                     }
                 });
@@ -367,14 +307,10 @@ public class SocketClientManager {
                     if (gameRoomScreen != null) {
                         String outcome = "LOSE";
                         String reason = "";
-                        if (finalIsJson) {
+                        if (payload != null) {
                             JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
                             outcome = obj.has("outcome") ? obj.get("outcome").getAsString() : "LOSE";
                             reason = obj.has("reason") ? obj.get("reason").getAsString() : "";
-                        } else {
-                            String[] goParts = rawData.split("\\|");
-                            outcome = goParts.length > 1 ? goParts[1] : "LOSE";
-                            reason = goParts.length > 2 ? goParts[2] : "";
                         }
                         
                         boolean isWinner = "WIN".equalsIgnoreCase(outcome);
@@ -411,7 +347,7 @@ public class SocketClientManager {
 
             case "REMATCH_REQUESTED":
                 Platform.runLater(() -> {
-                    String challenger = finalIsJson ? (String) payload : (stringParts != null && stringParts.length > 1 ? stringParts[1] : "Đối thủ");
+                    String challenger = payload != null ? payload.toString() : "Đối thủ";
                     Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                     alert.setTitle("Tái đấu");
                     alert.setHeaderText(challenger + " muốn tái đấu ván nữa!");
@@ -450,27 +386,35 @@ public class SocketClientManager {
                     quayVeSanh();
                 });
                 break;  
-                
+            case "HEATMAP_DATA":
+                Platform.runLater(() -> {
+                    if (payload != null) {
+                        JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                        // Nếu đang ở màn hình AdminGUI thì cập nhật vào Tab
+                        if (adminScreen != null) {
+                            adminScreen.capNhatHeatmap(obj);
+                        } else {
+                            // Fallback nếu dùng Dialog rời
+                            HeatmapDialog.hienThi(obj);
+                        }
+                    }
+                });
+                break;  
             case "GAME_ERROR":
             case "ERROR":
                 Platform.runLater(() -> {
-                    String msg = "Đã có lỗi xảy ra.";
-                    if (finalIsJson) {
-                        if (payload instanceof String) {
-                            msg = (String) payload;
-                        } else if (payload != null) {
-                            try {
-                                msg = JsonParser.parseString(payloadJson).getAsJsonObject().get("message").getAsString();
-                            } catch (Exception ignored) {}
-                        }
-                    } else if (stringParts != null && stringParts.length > 1) {
-                        msg = stringParts[1];
+                    String errMsg = "Đã có lỗi xảy ra.";
+                    if (payload instanceof String) {
+                        errMsg = (String) payload;
+                    } else if (payload != null) {
+                        try {
+                            errMsg = JsonParser.parseString(payloadJson).getAsJsonObject().get("message").getAsString();
+                        } catch (Exception ignored) {}
                     }
-                    System.out.println("[SERVER BAO LOI] " + msg);
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Thông báo");
                     alert.setHeaderText(null);
-                    alert.setContentText(msg);
+                    alert.setContentText(errMsg);
                     DialogStyle.apply(alert);
                     alert.show();
                 });

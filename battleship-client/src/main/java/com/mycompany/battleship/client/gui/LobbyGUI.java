@@ -100,7 +100,7 @@ public class LobbyGUI extends Application {
 
         SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
 
-        Scene scene = new Scene(root, 900, 600);
+        Scene scene = new Scene(root, 950, 600);
         scene.getStylesheets().add(duongDanCss());
 
         primaryStage.setScene(scene);
@@ -220,34 +220,34 @@ public class LobbyGUI extends Application {
         colTrangThai.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
         colTrangThai.setPrefWidth(150);
         colTrangThai.setCellFactory(col -> new javafx.scene.control.TableCell<String[], String>() {
-        private final javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(6);
+            private final javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(6);
 
-        @Override
-        protected void updateItem(String item, boolean empty) {
-            super.updateItem(item, empty);
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
 
-            if (empty || item == null) {
-                setText(null);
-                setGraphic(null);
-                setStyle("");
-            } else {
-                setText(item.toLowerCase()); 
-                setGraphicTextGap(8); 
-
-                if (item.equalsIgnoreCase("ONLINE")) {
-                    dot.setFill(javafx.scene.paint.Color.web("#00897B")); 
-                    setStyle("-fx-text-fill: #00897B; -fx-font-weight: bold;");
-                } else if (item.equalsIgnoreCase("OFFLINE")) {
-                    dot.setFill(javafx.scene.paint.Color.web("#B0BEC5"));
-                    setStyle("-fx-text-fill: #90A4AE; -fx-font-weight: normal;");
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setStyle("");
                 } else {
-                    dot.setFill(javafx.scene.paint.Color.web("#F9A825"));
-                    setStyle("-fx-text-fill: #F57C00; -fx-font-weight: bold;");
+                    setText(item.toLowerCase()); 
+                    setGraphicTextGap(8); 
+
+                    if (item.equalsIgnoreCase("ONLINE")) {
+                        dot.setFill(javafx.scene.paint.Color.web("#00897B")); 
+                        setStyle("-fx-text-fill: #00897B; -fx-font-weight: bold;");
+                    } else if (item.equalsIgnoreCase("OFFLINE")) {
+                        dot.setFill(javafx.scene.paint.Color.web("#B0BEC5"));
+                        setStyle("-fx-text-fill: #90A4AE; -fx-font-weight: normal;");
+                    } else {
+                        dot.setFill(javafx.scene.paint.Color.web("#F9A825"));
+                        setStyle("-fx-text-fill: #F57C00; -fx-font-weight: bold;");
+                    }
+                    setGraphic(dot);
                 }
-                setGraphic(dot);
             }
-        }
-    });
+        });
         
         TableColumn<String[], String> colDiem = new TableColumn<>("Điểm");
         colDiem.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
@@ -312,6 +312,7 @@ public class LobbyGUI extends Application {
         tuyChinhBang(tblHistory);
         TableColumn<String[], String> colId = new TableColumn<>("Mã trận");
         colId.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
+        colId.setMaxWidth(80);
 
         TableColumn<String[], String> colDoiThu = new TableColumn<>("Đối thủ");
         colDoiThu.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
@@ -340,7 +341,39 @@ public class LobbyGUI extends Application {
         TableColumn<String[], String> colThoiGian = new TableColumn<>("Thời gian");
         colThoiGian.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
 
-        tblHistory.getColumns().addAll(colId, colDoiThu, colKetQua, colThoiGian);
+        // CỘT XEM LẠI TRẬN ĐẤU (REPLAY)
+        TableColumn<String[], Void> colReplay = new TableColumn<>("Xem lại");
+        colReplay.setPrefWidth(120);
+        colReplay.setCellFactory(col -> new TableCell<String[], Void>() {
+            private final Button btnReplay = new Button("🎬 Xem lại");
+            {
+                btnReplay.getStyleClass().add("lobby-btn-challenge");
+                btnReplay.setOnAction(e -> {
+                    String[] row = getTableView().getItems().get(getIndex());
+                    String matchIdStr = row[0];
+                    try {
+                        int matchId = Integer.parseInt(matchIdStr);
+                        Map<String, Object> payload = new HashMap<>();
+                        payload.put("matchId", matchId);
+                        SocketClientManager.guiTinNhan(new MessageDTO("GET_REPLAY", payload));
+                    } catch (NumberFormatException ex) {
+                        System.err.println("Mã trận không hợp lệ: " + matchIdStr);
+                    }
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    setGraphic(btnReplay);
+                }
+            }
+        });
+
+        tblHistory.getColumns().addAll(colId, colDoiThu, colKetQua, colThoiGian, colReplay);
         tblHistory.setItems(dsLichSu);
 
         return new Tab("Lịch sử đấu", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblHistory));
@@ -421,7 +454,11 @@ public class LobbyGUI extends Application {
                 String id = obj.has("matchId") ? obj.get("matchId").getAsString() : "";
                 String opp = obj.has("opponentNickname") ? obj.get("opponentNickname").getAsString() : "";
                 String result = obj.has("result") ? obj.get("result").getAsString() : "";
-                String time = obj.has("playedAt") ? obj.get("playedAt").getAsString() : "";
+                
+                String time = "";
+                if (obj.has("playedAt") && !obj.get("playedAt").isJsonNull()) {
+                    time = obj.get("playedAt").getAsString();
+                }
                 dsLichSu.add(new String[]{id, opp, result, time});
             }
         } catch (Exception e) {
@@ -546,6 +583,10 @@ public class LobbyGUI extends Application {
                 alert.show();
             });
         }
+    }
+
+    public void batDauTranDau() {
+        batDauTranDau(new String[0]);
     }
 
     public void batDauTranDau(String[] parts) {

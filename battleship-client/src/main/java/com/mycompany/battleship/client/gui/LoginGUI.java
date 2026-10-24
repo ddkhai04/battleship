@@ -140,30 +140,16 @@ public class LoginGUI extends Application {
 
     // HÀM MỚI: Nhận dữ liệu JSON từ Server
     public void dangNhapThanhCong(JsonObject payload) {
-        String username = payload.get("username").getAsString();
-        String diem = payload.get("score").getAsString();
-        String role = payload.has("role") ? payload.get("role").getAsString() : "USER";
+    String username = payload.has("username") ? payload.get("username").getAsString() : "";
+    String diem = payload.has("score") ? payload.get("score").getAsString() : "0";
+    String role = payload.has("role") ? payload.get("role").getAsString() : "USER";
 
-        System.out.println("Giao diện nhận Login OK: " + username + " | Quyền: " + role);
+    System.out.println("Giao diện nhận Login OK: " + username + " | Quyền: " + role);
+    chuyenManHinhTheoRole(username, diem, role); 
+}
 
-        LobbyGUI.currentUsername = username;
-        LobbyGUI.currentScore = diem;
 
-        LobbyGUI lobbyGUI = new LobbyGUI();
-        lobbyGUI.start(primaryStage);
-    }
-
-    // Giữ lại hàm cũ phòng hờ fallback
-    public void dangNhapThanhCong(String[] parts) {
-        String username = parts.length > 1 ? parts[1] : "";
-        String diem = parts.length > 2 ? parts[2] : "0";
-
-        LobbyGUI.currentUsername = username;
-        LobbyGUI.currentScore = diem;
-
-        LobbyGUI lobbyGUI = new LobbyGUI();
-        lobbyGUI.start(primaryStage);
-    }
+    
 
     public void dangNhapThatBai(String lyDo) {
         btnLogin.setDisable(false);
@@ -178,7 +164,20 @@ public class LoginGUI extends Application {
         lblThongBao.getStyleClass().add("message-success");
         lblThongBao.setText(thongBao);
     }
-
+    private void chuyenManHinhTheoRole(String username, String diem, String role) {
+    if ("ADMIN".equalsIgnoreCase(role)) {
+        // Mở giao diện Quản trị viên
+        AdminGUI.currentAdminUsername = username;
+        AdminGUI adminGUI = new AdminGUI();
+        adminGUI.start(primaryStage);
+    } else {
+        // Mở giao diện Sảnh chờ người chơi bình thường
+        LobbyGUI.currentUsername = username;
+        LobbyGUI.currentScore = diem;
+        LobbyGUI lobbyGUI = new LobbyGUI();
+        lobbyGUI.start(primaryStage);
+    }
+}
     public static void main(String[] args) {
         launch(args);
     }

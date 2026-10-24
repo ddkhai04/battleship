@@ -17,6 +17,8 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import org.mindrot.jbcrypt.BCrypt;
 
 public class ClientHandler implements Runnable {
@@ -70,6 +72,9 @@ public class ClientHandler implements Runnable {
                     case "LOGIN":
                         if (payload != null) handleLogin((String) payload.get("username"), (String) payload.get("password"));
                         break;
+                    case "GET_ADMIN_DATA":
+                        handleGetAdminData();
+                        break;
                     case "REGISTER":
                         if (payload != null) handleRegister((String) payload.get("username"), (String) payload.get("password"));
                         break;
@@ -111,6 +116,9 @@ public class ClientHandler implements Runnable {
                     case "REJECT_REMATCH":
                         handleRejectRematch();
                         break;
+                    case "GET_HEATMAP":
+                        handleGetHeatmap(payload);
+                        break;
                     case "SURRENDER":
                     case "LEAVE_MATCH":
                         handleSurrender();
@@ -135,14 +143,90 @@ public class ClientHandler implements Runnable {
             }
         }
     }
+    private void handleGetAdminData() {
+        if (this.currentUser == null || this.currentUser.getRole() != User.Role.ADMIN) {
+            sendMessage(new MessageDTO("ERROR", "Bạn không có quyền quản trị!"));
+            return;
+        }
 
+        UserDAO userDAO = new UserDAO();
+        List<User> allUsers = userDAO.getAllUsers();
+
+        // Gom danh sách user phù hợp với các cột của AdminGUI
+        List<Map<String, Object>> userList = new ArrayList<>();
+        for (User u : allUsers) {
+            Map<String, Object> uMap = new HashMap<>();
+            uMap.put("id", u.getId());
+            uMap.put("username", u.getUsername());
+            uMap.put("nickname", u.getNickname());
+            uMap.put("role", u.getRole().name());
+            String realStatus = BattleshipServer.onlineUsers.containsKey(u.getUsername()) ? "ONLINE" : "OFFLINE";
+            if (BattleshipServer.gameManager.isInGame(u.getUsername())) {
+                realStatus = "IN_GAME";
+            }
+            uMap.put("status", realStatus);
+            uMap.put("score", u.getScore());
+            uMap.put("wins", u.getWins());
+            uMap.put("losses", u.getLosses());
+            userList.add(uMap);
+        }
+
+        // Danh sách trận ongoing từ GameManager
+        List<Map<String, Object>> matchList = new ArrayList<>();
+        // Duyệt qua các phòng đang diễn ra trong GameManager
+        for (GameRoom room : BattleshipServer.gameManager.getAllRooms()) { 
+            Map<String, Object> mMap = new HashMap<>();
+            mMap.put("matchId", room.getRoomId());
+            mMap.put("player1Name", room.getInviterId());
+            mMap.put("player2Name", room.getInviteeId());
+            mMap.put("status", room.getPhase().name());
+            matchList.add(mMap);
+        }
+
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("users", userList);
+        responseData.put("matches", matchList);
+
+        sendMessage(new MessageDTO("ADMIN_DATA", responseData));
+    }
+    
+    private void handleGetHeatmap(Map<String, Object> payload) {
+        if (this.currentUser == null) return;
+
+        // Chỉ cho phép tài khoản có quyền ADMIN
+        String role = (this.currentUser.getRole() != null) ? this.currentUser.getRole().toString() : "USER";
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            sendMessage(new MessageDTO("ERROR", "Bạn không có quyền xem biểu đồ nhiệt!"));
+            return;
+        }
+
+        // Lấy thống kê toàn server (truyền targetUserId = 0)
+        int targetUserId = 0;
+        if (payload != null && payload.containsKey("userId")) {
+            targetUserId = ((Double) payload.get("userId")).intValue();
+        }
+
+        com.mycompany.battleship.server.dao.MatchDAO matchDAO = new com.mycompany.battleship.server.dao.MatchDAO();
+        Map<String, Integer> placementHeatmap = matchDAO.getShipPlacementHeatmap(targetUserId);
+        Map<String, Integer> shotHeatmap = matchDAO.getShotTargetHeatmap(targetUserId);
+
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("userId", targetUserId);
+        responseData.put("placementHeatmap", placementHeatmap);
+        responseData.put("shotHeatmap", shotHeatmap);
+
+        sendMessage(new MessageDTO("HEATMAP_DATA", responseData));
+    }
+    
     private void handleLogin(String username, String password) {
         UserDAO userDAO = new UserDAO();
         User user = userDAO.checkLogin(username);
 
         if (user != null && BCrypt.checkpw(password, user.getPassword())) {
             if (BattleshipServer.onlineUsers.containsKey(username)) {
-                sendMessage(new MessageDTO("LOGIN_FAIL", "This account is already logged in elsewhere."));
+                Map<String, Object> failPayload = new HashMap<>();
+                failPayload.put("message", "This account is already logged in elsewhere.");
+                sendMessage(new MessageDTO("LOGIN_FAIL", failPayload));
                 return;
             }
 
@@ -153,18 +237,21 @@ public class ClientHandler implements Runnable {
             userDAO.updateStatus(user.getId(), "ONLINE");
             this.currentUser.setStatus("ONLINE");
 
+            // Đóng gói payload cho LOGIN_OK
             Map<String, Object> payloadData = new HashMap<>();
             payloadData.put("username", username);
             payloadData.put("score", user.getScore());
             
-            // Xử lý an toàn tránh NullPointerException nếu role trong database bị null
-            String roleStr = (user.getRole() != null) ? user.getRole().toString() : "USER";
+            // Xử lý an toàn tránh NullPointerException nếu role bị null
+            String roleStr = (user.getRole() != null) ? user.getRole().name() : "USER";
             payloadData.put("role", roleStr);
 
             sendMessage(new MessageDTO("LOGIN_OK", payloadData));
             BattleshipServer.broadcastLobbyList();
         } else {
-            sendMessage(new MessageDTO("LOGIN_FAIL", "Invalid username or password."));
+            Map<String, Object> failPayload = new HashMap<>();
+            failPayload.put("message", "Invalid username or password.");
+            sendMessage(new MessageDTO("LOGIN_FAIL", failPayload));
         }
     }
 
@@ -391,10 +478,4 @@ public class ClientHandler implements Runnable {
         }
     }
     
-    // Hàm cũ: Nạp chồng để tương thích ngược với ServerGameEventListener (sẽ xóa sau khi đồng bộ toàn bộ)
-    public void sendMessage(String legacyMessage) {
-        if (out != null) {
-            out.println(legacyMessage);
-        }
-    }
 }
