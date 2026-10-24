@@ -349,7 +349,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void handleLeaderboard() {
+    public void handleLeaderboard() {
         com.mycompany.battleship.server.dao.UserDAO userDAO = new com.mycompany.battleship.server.dao.UserDAO();
         java.util.List<com.mycompany.battleship.common.model.UserDTO> topPlayers = userDAO.getLeaderboard(50); 
         sendMessage(new MessageDTO("RANK_LIST", topPlayers));
