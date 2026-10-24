@@ -13,6 +13,7 @@ public class BattleshipServer {
     public static void broadcastLobbyList() {
         for (ClientHandler client : onlineUsers.values()) {
             client.handleListPlayers();
+            client.handleLeaderboard(); // Ép Server làm mới cả Bảng xếp hạng
         }
     }
 

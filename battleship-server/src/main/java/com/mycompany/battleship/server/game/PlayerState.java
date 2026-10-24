@@ -19,6 +19,7 @@ final class PlayerState {
     private final List<MissileType> bonus = new ArrayList<>();
     private int nuclearReceived;
     private int shotsFired;
+    private int mysteriesCollected; // Thêm biến đếm số lượng hộp quà đã nhận
 
     PlayerState(String id, GameConfig config) {
         this.id = id;
@@ -31,6 +32,7 @@ final class PlayerState {
         this.bonus.clear();
         this.nuclearReceived = 0;
         this.shotsFired = 0;
+        this.mysteriesCollected = 0; // Reset khi ván mới bắt đầu
     }
 
     String id() { return id; }
@@ -39,6 +41,10 @@ final class PlayerState {
     void incrementShots() { shotsFired++; }
     int nuclearReceived() { return nuclearReceived; }
     int bonusCount() { return bonus.size(); }
+    
+    // Hàm truy xuất và tăng số lượng quà đã nhận
+    int getMysteriesCollected() { return mysteriesCollected; }
+    void incrementMysteriesCollected() { mysteriesCollected++; }
 
     boolean has(MissileType t) {
         if (t == MissileType.SIMPLE) return true;

@@ -1,5 +1,9 @@
 package com.mycompany.battleship.client.gui;
 
+import com.google.gson.JsonObject;
+import com.mycompany.battleship.common.model.MessageDTO;
+import java.util.HashMap;
+import java.util.Map;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -11,6 +15,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+
 /**
  * @author DINH THE LINH
  */
@@ -31,8 +36,6 @@ public class LoginGUI extends Application {
         SocketClientManager.loginScreen = this;
 
         // 1. Tựa đề
-        // Luu y: JavaFX CSS khong ho tro letter-spacing, nen minh gia lap
-        // hieu ung "tracking rong" bang cach chen khoang trang thu cong.
         Label lblTitle = new Label("ĐĂNG NHẬP TÀI KHOẢN");
         lblTitle.getStyleClass().add("title-label");
 
@@ -67,11 +70,10 @@ public class LoginGUI extends Application {
         Button btnRegister = new Button("Chưa có tài khoản? Đăng ký ngay");
         btnRegister.getStyleClass().add("btn-link");
 
-        // 4. Xử lý logic theo kiểu sinh viên
+        // 4. Xử lý logic
         btnLogin.setOnAction(e -> xuLyDangNhap());
 
         btnRegister.setOnAction(e -> {
-             // Mở form đăng ký (sẽ báo đỏ nếu bạn chưa tạo file RegisterGUI)
              RegisterGUI registerGUI = new RegisterGUI();
              registerGUI.start(primaryStage);
         });
@@ -91,19 +93,13 @@ public class LoginGUI extends Application {
         root.getChildren().add(formCard);
 
         Scene scene = new Scene(root, 800, 600);
-        // Nạp file CSS riêng vào Scene
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-
-       
 
         primaryStage.setScene(scene);
         primaryStage.setResizable(false);
         primaryStage.show();
     }
 
-    // ==============================================================
-    // LOGIC KẾT NỐI SERVER - GIỮ NGUYÊN, KHÔNG THAY ĐỔI
-    // ==============================================================
     private void xuLyDangNhap() {
         String user = txtUsername.getText().trim();
         String pass = txtPassword.getText().trim();
@@ -120,11 +116,15 @@ public class LoginGUI extends Application {
         lblThongBao.getStyleClass().add("message-info");
         lblThongBao.setText("Đang kết nối tới server trung tâm...");
 
-        // Kết nối mạng bằng Thread để không đơ UI
         Thread threadKetNoi = new Thread(() -> {
             boolean ok = SocketClientManager.ketNoiServer();
             if (ok) {
-                SocketClientManager.guiTinNhan("LOGIN|" + user + "|" + pass);
+                // ĐÓNG GÓI DỮ LIỆU JSON ĐỂ GỬI ĐI
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("username", user);
+                payload.put("password", pass);
+                
+                SocketClientManager.guiTinNhan(new MessageDTO("LOGIN", payload));
             } else {
                 Platform.runLater(() -> {
                     lblThongBao.getStyleClass().removeAll("message-info", "message-error", "message-success");
@@ -138,15 +138,29 @@ public class LoginGUI extends Application {
         threadKetNoi.start();
     }
 
+    // HÀM MỚI: Nhận dữ liệu JSON từ Server
+    public void dangNhapThanhCong(JsonObject payload) {
+        String username = payload.get("username").getAsString();
+        String diem = payload.get("score").getAsString();
+        String role = payload.has("role") ? payload.get("role").getAsString() : "USER";
+
+        System.out.println("Giao diện nhận Login OK: " + username + " | Quyền: " + role);
+
+        LobbyGUI.currentUsername = username;
+        LobbyGUI.currentScore = diem;
+
+        LobbyGUI lobbyGUI = new LobbyGUI();
+        lobbyGUI.start(primaryStage);
+    }
+
+    // Giữ lại hàm cũ phòng hờ fallback
     public void dangNhapThanhCong(String[] parts) {
         String username = parts.length > 1 ? parts[1] : "";
         String diem = parts.length > 2 ? parts[2] : "0";
 
-        // Chuyển dữ liệu sang sảnh chờ
         LobbyGUI.currentUsername = username;
         LobbyGUI.currentScore = diem;
 
-        // Mở màn hình Lobby (Sẽ báo đỏ nếu bạn chưa tạo LobbyGUI)
         LobbyGUI lobbyGUI = new LobbyGUI();
         lobbyGUI.start(primaryStage);
     }
@@ -158,7 +172,7 @@ public class LoginGUI extends Application {
         lblThongBao.setText(lyDo);
         txtPassword.clear();
     }
-    // Hàm này được gọi từ form RegisterGUI sau khi đăng ký thành công
+
     public void hienThiThongBaoXanh(String thongBao) {
         lblThongBao.getStyleClass().removeAll("message-error", "message-info", "message-success");
         lblThongBao.getStyleClass().add("message-success");

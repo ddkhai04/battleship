@@ -162,7 +162,9 @@ public class GameRoom {
 
         shooter.incrementShots();
         if (shooter.shotsFired() % config.getMysteryEveryNShots() == 0) {
-            result.setNewMysteryBox(board.spawnMystery(rng));
+            if (shooter.getMysteriesCollected() < 4) { // Chỉ sinh quà khi chưa đủ 4
+                result.setNewMysteryBox(board.spawnMystery(rng));
+            }
         }
         result.setShooterInventory(shooter.inventorySnapshot());
 
@@ -324,15 +326,28 @@ public class GameRoom {
     }
 
     private void grantReward(PlayerState shooter, ShotResult result) {
+        if (shooter.getMysteriesCollected() >= 4) return; // Chặn cứng nếu đã nhận đủ 4
+
         if (!shooter.hasBonusSpace()) {
             result.incrementRewardsLost();
             return;
         }
+
         List<MissileType> pool = new ArrayList<>(Arrays.asList(MissileType.BIG, MissileType.NUCLEAR, MissileType.RAIN));
         if (shooter.nuclearReceived() >= config.getMaxNuclearPerMatch()) pool.remove(MissileType.NUCLEAR);
         MissileType reward = pool.get(rng.nextInt(pool.size()));
+
         shooter.addBonus(reward);
         result.addReward(reward);
+
+        shooter.incrementMysteriesCollected(); // Đánh dấu đã nhận 1 hộp
+
+        // Nếu vừa nhận đủ hộp thứ 4, xóa các hộp còn sót trên bàn cờ địch
+        if (shooter.getMysteriesCollected() == 4) {
+            PlayerState victim = opponentOf(shooter);
+            // Tùy vào Board.java của bạn, hãy gọi hàm xóa ở đây. Ví dụ:
+            victim.board().clearAllMysteries(); 
+        }
     }
 
     // ------------------------------------------------------------------ nội bộ: tiện ích

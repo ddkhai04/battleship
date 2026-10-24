@@ -1,26 +1,27 @@
 package com.mycompany.battleship.server;
 
-import com.google.gson.Gson;
 import com.mycompany.battleship.common.model.ChatMessage;
 import com.mycompany.battleship.common.model.EmoteEvent;
 import com.mycompany.battleship.common.model.GameResult;
+import com.mycompany.battleship.common.model.MessageDTO;
 import com.mycompany.battleship.common.model.ShotResult;
 import com.mycompany.battleship.common.model.User;
 import com.mycompany.battleship.server.dao.MatchDAO;
 import com.mycompany.battleship.server.dao.UserDAO;
 import com.mycompany.battleship.server.game.GameEventListener;
 import com.mycompany.battleship.server.game.GameRoom;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ServerGameEventListener implements GameEventListener {
-
-    private static final Gson gson = new Gson();
 
     private ClientHandler getHandler(String username) {
         if (username == null) return null;
         return BattleshipServer.onlineUsers.get(username);
     }
 
-    private void sendToBoth(GameRoom room, String message) {
+    // Đổi kiểu tham số thành MessageDTO
+    private void sendToBoth(GameRoom room, MessageDTO message) {
         ClientHandler hA = getHandler(room.getInviterId());
         ClientHandler hB = getHandler(room.getInviteeId());
         if (hA != null) hA.sendMessage(message);
@@ -33,52 +34,69 @@ public class ServerGameEventListener implements GameEventListener {
         ClientHandler hB = getHandler(room.getInviteeId());
 
         if (hA != null) {
-            hA.sendMessage("MATCH_START|" + room.getRoomId() + "|" + room.getInviteeId());
-            hA.sendMessage("GAME_VIEW|" + gson.toJson(room.viewFor(room.getInviterId())));
+            Map<String, Object> payloadA = new HashMap<>();
+            payloadA.put("roomId", room.getRoomId());
+            payloadA.put("opponent", room.getInviteeId());
+            hA.sendMessage(new MessageDTO("MATCH_START", payloadA));
+            hA.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviterId())));
         }
         if (hB != null) {
-            hB.sendMessage("MATCH_START|" + room.getRoomId() + "|" + room.getInviterId());
-            hB.sendMessage("GAME_VIEW|" + gson.toJson(room.viewFor(room.getInviteeId())));
+            Map<String, Object> payloadB = new HashMap<>();
+            payloadB.put("roomId", room.getRoomId());
+            payloadB.put("opponent", room.getInviterId());
+            hB.sendMessage(new MessageDTO("MATCH_START", payloadB));
+            hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
         }
     }
 
     @Override
     public void onCountdown(GameRoom room, int secondsLeft) {
-        sendToBoth(room, "COUNTDOWN|" + secondsLeft);
+        sendToBoth(room, new MessageDTO("COUNTDOWN", secondsLeft));
     }
 
     @Override
     public void onTurnStarted(GameRoom room, String playerId, int turnSeconds, long deadlineMillis) {
-        sendToBoth(room, "TURN_START|" + playerId + "|" + turnSeconds + "|" + deadlineMillis);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("turnPlayer", playerId);
+        payload.put("seconds", turnSeconds);
+        payload.put("deadlineMillis", deadlineMillis);
+        sendToBoth(room, new MessageDTO("TURN_START", payload));
     }
 
     @Override
     public void onShotResolved(GameRoom room, ShotResult result) {
-        sendToBoth(room, "SHOT_RESULT|" + gson.toJson(result));
+        // Gửi thẳng đối tượng ShotResult, ClientHandler sẽ tự parse thành JSON
+        sendToBoth(room, new MessageDTO("SHOT_RESULT", result));
 
-        // Cập nhật lại góc nhìn bàn cờ cho từng người chơi
         ClientHandler hA = getHandler(room.getInviterId());
         ClientHandler hB = getHandler(room.getInviteeId());
         if (hA != null) {
-            hA.sendMessage("GAME_VIEW|" + gson.toJson(room.viewFor(room.getInviterId())));
+            hA.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviterId())));
         }
         if (hB != null) {
-            hB.sendMessage("GAME_VIEW|" + gson.toJson(room.viewFor(room.getInviteeId())));
+            hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
         }
     }
 
     @Override
     public void onGameOver(GameRoom room, GameResult result) {
-        String jsonResult = gson.toJson(result);
-
         ClientHandler winnerHandler = getHandler(result.getWinnerId());
         ClientHandler loserHandler = getHandler(result.getLoserId());
 
         if (winnerHandler != null) {
-            winnerHandler.sendMessage("GAME_OVER|WIN|" + result.getReason() + "|" + jsonResult);
+            Map<String, Object> winPayload = new HashMap<>();
+            winPayload.put("outcome", "WIN");
+            winPayload.put("reason", result.getReason());
+            winPayload.put("result", result);
+            winnerHandler.sendMessage(new MessageDTO("GAME_OVER", winPayload));
         }
+        
         if (loserHandler != null) {
-            loserHandler.sendMessage("GAME_OVER|LOSE|" + result.getReason() + "|" + jsonResult);
+            Map<String, Object> losePayload = new HashMap<>();
+            losePayload.put("outcome", "LOSE");
+            losePayload.put("reason", result.getReason());
+            losePayload.put("result", result);
+            loserHandler.sendMessage(new MessageDTO("GAME_OVER", losePayload));
         }
 
         // Lưu kết quả trận đấu vào MySQL Database
@@ -119,27 +137,35 @@ public class ServerGameEventListener implements GameEventListener {
         String otherId = fromPlayerId.equals(room.getInviterId()) ? room.getInviteeId() : room.getInviterId();
         ClientHandler otherHandler = getHandler(otherId);
         if (otherHandler != null) {
-            otherHandler.sendMessage("REMATCH_REQUESTED|" + fromPlayerId);
+            otherHandler.sendMessage(new MessageDTO("REMATCH_REQUESTED", fromPlayerId));
         }
     }
 
     @Override
     public void onPlayerLeft(GameRoom room, String playerId) {
-        sendToBoth(room, "PLAYER_LEFT|" + playerId);
+        sendToBoth(room, new MessageDTO("PLAYER_LEFT", playerId));
     }
 
     @Override
     public void onChatMessage(GameRoom room, ChatMessage message) {
-        sendToBoth(room, "CHAT|" + message.getSenderId() + "|" + message.getText() + "|" + message.getTimestampMillis());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("senderId", message.getSenderId());
+        payload.put("text", message.getText());
+        payload.put("timestamp", message.getTimestampMillis());
+        sendToBoth(room, new MessageDTO("CHAT", payload));
     }
 
     @Override
     public void onEmote(GameRoom room, EmoteEvent event) {
-        sendToBoth(room, "EMOTE|" + event.getSenderId() + "|" + event.getEmote().name() + "|" + event.getTimestampMillis());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("senderId", event.getSenderId());
+        payload.put("emoteName", event.getEmote().name());
+        payload.put("timestamp", event.getTimestampMillis());
+        sendToBoth(room, new MessageDTO("EMOTE", payload));
     }
 
     @Override
     public void onRoomClosed(GameRoom room) {
-        sendToBoth(room, "ROOM_CLOSED");
+        sendToBoth(room, new MessageDTO("ROOM_CLOSED", null));
     }
 }
