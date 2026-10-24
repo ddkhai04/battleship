@@ -1,6 +1,9 @@
 package com.mycompany.battleship.server.game;
 
 import com.mycompany.battleship.common.model.GameConfig;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,8 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Sổ quản lý các phòng đang chơi. Thành viên 2 (Lobby Server) gọi createRoom() ngay khi B đồng ý lời thách đấu,
- * và chuyển các message "bắn" / "tái đấu" / "về sảnh" / "mất kết nối" của client vào đúng phòng.
+ * Sổ quản lý các phòng đang chơi.
  */
 public class GameManager {
     private final ScheduledExecutorService scheduler;
@@ -47,7 +49,18 @@ public class GameManager {
         return room;
     }
 
-    public GameRoom getRoom(String roomId) { return rooms.get(roomId); }
+    public GameRoom getRoom(String roomId) { 
+        return rooms.get(roomId); 
+    }
+
+    /** Trả về danh sách tất cả các GameRoom đang chạy phục vụ tính năng Admin / Giám sát */
+    public List<GameRoom> getAllRooms() {
+        return new ArrayList<>(rooms.values());
+    }
+
+    public Map<String, GameRoom> getRooms() {
+        return rooms;
+    }
 
     /** Phòng mà người chơi đang ở; null nếu không có. */
     public GameRoom findByPlayer(String playerId) {
@@ -55,7 +68,9 @@ public class GameManager {
         return roomId == null ? null : rooms.get(roomId);
     }
 
-    public boolean isInGame(String playerId) { return findByPlayer(playerId) != null; }
+    public boolean isInGame(String playerId) { 
+        return findByPlayer(playerId) != null; 
+    }
 
     /** Gọi khi socket của người chơi bị ngắt: đang đánh thì bị xử thua. */
     public void onPlayerDisconnected(String playerId) {
@@ -63,5 +78,7 @@ public class GameManager {
         if (room != null) room.leave(playerId);
     }
 
-    public void shutdown() { scheduler.shutdownNow(); }
+    public void shutdown() { 
+        scheduler.shutdownNow(); 
+    }
 }

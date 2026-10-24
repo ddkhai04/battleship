@@ -80,8 +80,9 @@ public class UserDAO {
             ps.setString(1, username);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
+                    User.Role role = User.Role.valueOf(rs.getString("role"));
                     return new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"),
-                            rs.getString("nickname"), rs.getString("status"), rs.getInt("score"),
+                            rs.getString("nickname"), role, rs.getString("status"), rs.getInt("score"),
                             rs.getInt("wins"), rs.getInt("losses"), rs.getTimestamp("created_at"));
                 }
             }
@@ -98,8 +99,10 @@ public class UserDAO {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
+                    User.Role role = User.Role.valueOf(rs.getString("role"));
+
                     return new User(rs.getInt("id"), rs.getString("username"), rs.getString("password"),
-                            rs.getString("nickname"), rs.getString("status"), rs.getInt("score"),
+                            rs.getString("nickname"), role, rs.getString("status"), rs.getInt("score"),
                             rs.getInt("wins"), rs.getInt("losses"), rs.getTimestamp("created_at"));
                 }
             }
@@ -147,7 +150,38 @@ public class UserDAO {
         }
         return list;
     }
-
+    public List<User> getAllUsers() {
+        List<User> list = new ArrayList<>();
+        String sql = "SELECT * FROM users ORDER BY id ASC";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String roleStr = rs.getString("role");
+                User.Role role = User.Role.USER;
+                if (roleStr != null) {
+                    try {
+                        role = User.Role.valueOf(roleStr.trim().toUpperCase());
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                list.add(new User(
+                    rs.getInt("id"), 
+                    rs.getString("username"), 
+                    rs.getString("password"),
+                    rs.getString("nickname"), 
+                    role, 
+                    rs.getString("status"), 
+                    rs.getInt("score"),
+                    rs.getInt("wins"), 
+                    rs.getInt("losses"), 
+                    rs.getTimestamp("created_at")
+                ));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
     public List<UserDTO> getLeaderboard(int limit) {
         List<UserDTO> list = new ArrayList<>();
         String sql = "SELECT id, nickname, status, score, wins, losses FROM users ORDER BY score DESC, wins DESC LIMIT ?";

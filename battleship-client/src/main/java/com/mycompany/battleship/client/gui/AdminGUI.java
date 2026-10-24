@@ -1,5 +1,6 @@
 package com.mycompany.battleship.client.gui;
 
+import com.mycompany.battleship.common.model.MessageDTO;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -50,6 +51,7 @@ public class AdminGUI extends Application {
         TabPane tabPane = new TabPane();
         tabPane.getTabs().add(taoTabQuanLyTaiKhoan());
         tabPane.getTabs().add(taoTabGiamSatTranDau());
+        tabPane.getTabs().add(taoTabBieuDoNhiet());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.getStyleClass().add("lobby-tabs");
 
@@ -137,11 +139,11 @@ public class AdminGUI extends Application {
         lblSub.getStyleClass().add("lobby-subtitle");
         VBox titleBox = new VBox(2, lblTitle, lblSub);
         titleBox.setAlignment(Pos.CENTER);
-
+        
         Button btnLogout = new Button("Đăng xuất");
         btnLogout.getStyleClass().add("lobby-btn-exit");
         btnLogout.setOnAction(e -> {
-            SocketClientManager.guiTinNhan("LOGOUT");
+            SocketClientManager.guiTinNhan(new MessageDTO("LOGOUT", null));
             SocketClientManager.dongKetNoi();
             LoginGUI loginGUI = new LoginGUI();
             loginGUI.start(primaryStage);
@@ -162,7 +164,7 @@ public class AdminGUI extends Application {
         box.getStyleClass().add("top-bar");
         return box;
     }
-
+   
     // --- TAB 1: QUẢN LÝ TÀI KHOẢN ---
     private Tab taoTabQuanLyTaiKhoan() {
         Button btnRefresh = new Button("Làm mới danh sách");
@@ -203,6 +205,66 @@ public class AdminGUI extends Application {
 
         return new Tab("Quản lý tài khoản", taoNoiDungTab(toolbar, tblUsers));
     }
+    
+    // 2 lưới hiển thị nhiệt độ (10x10 ô)
+    private GridPane gridPlacementHeatmap = new GridPane();
+    private GridPane gridShotHeatmap = new GridPane();
+
+    private Tab taoTabBieuDoNhiet() {
+        Button btnRefresh = new Button("Làm mới biểu đồ");
+        btnRefresh.getStyleClass().add("lobby-btn-primary");
+        btnRefresh.setOnAction(e -> {
+            SocketClientManager.guiTinNhan(new MessageDTO("GET_HEATMAP", null));
+        });
+
+        HBox toolbar = taoThanhCongCu(btnRefresh);
+
+        // Khởi tạo lưới 10x10 rỗng
+        khoiTaoLuoiHeatmap(gridPlacementHeatmap);
+        khoiTaoLuoiHeatmap(gridShotHeatmap);
+
+        Label lblPlacement = new Label("🔥 TẦN SUẤT ĐẶT TÀU (SHIP PLACEMENT)");
+        lblPlacement.setStyle("-fx-text-fill: #00E5FF; -fx-font-weight: bold; -fx-font-size: 14px;");
+
+        Label lblShot = new Label("🎯 TẦN SUẤT BẮN PHÁ (SHOT TARGET)");
+        lblShot.setStyle("-fx-text-fill: #FF5252; -fx-font-weight: bold; -fx-font-size: 14px;");
+
+        VBox boxPlacement = new VBox(10, lblPlacement, gridPlacementHeatmap);
+        boxPlacement.setAlignment(Pos.CENTER);
+
+        VBox boxShot = new VBox(10, lblShot, gridShotHeatmap);
+        boxShot.setAlignment(Pos.CENTER);
+
+        HBox heatmapsBox = new HBox(40, boxPlacement, boxShot);
+        heatmapsBox.setAlignment(Pos.CENTER);
+        heatmapsBox.setPadding(new Insets(20));
+
+        ScrollPane scrollPane = new ScrollPane(heatmapsBox);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+
+        VBox content = new VBox(toolbar, scrollPane);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        return new Tab("📊 Biểu đồ nhiệt", content);
+    }
+
+    private void khoiTaoLuoiHeatmap(GridPane grid) {
+        grid.getChildren().clear();
+        grid.setHgap(3);
+        grid.setVgap(3);
+        grid.setAlignment(Pos.CENTER);
+
+        for (int r = 0; r < 10; r++) {
+            for (int c = 0; c < 10; c++) {
+                Label cell = new Label("0");
+                cell.setPrefSize(35, 35);
+                cell.setAlignment(Pos.CENTER);
+                cell.setStyle("-fx-background-color: #1A2634; -fx-text-fill: #78909C; -fx-border-color: #263238; -fx-border-radius: 4; -fx-background-radius: 4; -fx-font-size: 11px;");
+                grid.add(cell, c, r);
+            }
+        }
+    }
 
     // --- TAB 2: GIÁM SÁT TRẬN ĐẤU & XEM TRỰC TIẾP (SPECTATE) ---
     private Tab taoTabGiamSatTranDau() {
@@ -239,13 +301,10 @@ public class AdminGUI extends Application {
                     String roomId = row[0]; // Hoặc matchId tùy cách truyền từ server
                     
                     // Gửi lệnh kết nối Spectate lên server
-                    JsonObject req = new JsonObject();
-                    req.addProperty("command", "SPECTATE_JOIN");
-                    JsonObject payload = new JsonObject();
-                    payload.addProperty("roomId", roomId);
-                    req.add("payload", payload);
-
-                    SocketClientManager.guiTinNhan(req.toString());
+                    // Gửi lệnh kết nối Spectate lên server
+                    java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                    payload.put("roomId", roomId);
+                    SocketClientManager.guiTinNhan(new MessageDTO("SPECTATE_JOIN", payload));
                 });
             }
 
@@ -267,12 +326,59 @@ public class AdminGUI extends Application {
     }
 
     private void yeuCauDuLieuAdmin() {
-        // Gửi lệnh lấy thông tin toàn bộ user và các trận ONGOING
-        JsonObject req = new JsonObject();
-        req.addProperty("command", "GET_ADMIN_DATA");
-        SocketClientManager.guiTinNhan(req.toString());
+        SocketClientManager.guiTinNhan(new MessageDTO("GET_ADMIN_DATA", null));
+    }
+    public void capNhatHeatmap(JsonObject payload) {
+        Platform.runLater(() -> {
+            if (payload.has("placementHeatmap")) {
+                toMauHeatmap(gridPlacementHeatmap, payload.getAsJsonObject("placementHeatmap"), true);
+            }
+            if (payload.has("shotHeatmap")) {
+                toMauHeatmap(gridShotHeatmap, payload.getAsJsonObject("shotHeatmap"), false);
+            }
+        });
     }
 
+    private void toMauHeatmap(GridPane grid, JsonObject dataMap, boolean isPlacement) {
+        int maxVal = 1;
+        // Tìm giá trị lớn nhất để tính tỉ lệ màu
+        for (String key : dataMap.keySet()) {
+            int val = dataMap.get(key).getAsInt();
+            if (val > maxVal) maxVal = val;
+        }
+
+        for (javafx.scene.Node node : grid.getChildren()) {
+            Integer c = GridPane.getColumnIndex(node);
+            Integer r = GridPane.getRowIndex(node);
+            if (r != null && c != null && node instanceof Label) {
+                Label cell = (Label) node;
+                String coord = r + "," + c; // Hoặc format tọa độ DB của bạn (vd: "A1" hoặc "0,0")
+                int count = dataMap.has(coord) ? dataMap.get(coord).getAsInt() : 0;
+                cell.setText(String.valueOf(count));
+
+                if (count == 0) {
+                    cell.setStyle("-fx-background-color: #1A2634; -fx-text-fill: #78909C; -fx-border-color: #263238; -fx-border-radius: 4; -fx-background-radius: 4; -fx-font-size: 11px;");
+                } else {
+                    double ratio = (double) count / maxVal;
+                    // Đặt tàu dùng dải xanh-vàng, bắn dùng dải vàng-đỏ
+                    String bgColor = isPlacement ? tinhMauNhietPlacement(ratio) : tinhMauNhietShot(ratio);
+                    cell.setStyle("-fx-background-color: " + bgColor + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-border-color: #FFFFFF33; -fx-border-radius: 4; -fx-background-radius: 4; -fx-font-size: 11px;");
+                }
+            }
+        }
+    }
+
+    private String tinhMauNhietPlacement(double ratio) {
+        if (ratio < 0.3) return "#00838F";
+        if (ratio < 0.7) return "#00ACC1";
+        return "#00E5FF";
+    }
+
+    private String tinhMauNhietShot(double ratio) {
+        if (ratio < 0.3) return "#E65100";
+        if (ratio < 0.7) return "#F4511E";
+        return "#D50000";
+    }
     /**
      * Nhận gói dữ liệu JSON từ Server khi có phản hồi "ADMIN_DATA"
      */
@@ -289,7 +395,7 @@ public class AdminGUI extends Application {
                     String nickname = u.get("nickname").getAsString();
                     String role = u.get("role").getAsString();
                     String status = u.get("status").getAsString();
-                    String score = String.valueOf(u.get("score").getAsInt());
+                    String score = (u.has("score") && !u.get("score").isJsonNull()) ? u.get("score").getAsString() : "0";
                     String wins = String.valueOf(u.get("wins").getAsInt());
                     String losses = String.valueOf(u.get("losses").getAsInt());
 
@@ -303,7 +409,7 @@ public class AdminGUI extends Application {
                 JsonArray matchArr = payload.getAsJsonArray("matches");
                 for (JsonElement el : matchArr) {
                     JsonObject m = el.getAsJsonObject();
-                    String matchId = String.valueOf(m.get("matchId").getAsInt());
+                    String matchId = m.get("matchId").getAsString();
                     String p1 = m.get("player1Name").getAsString();
                     String p2 = m.get("player2Name").getAsString();
                     String status = m.get("status").getAsString();
