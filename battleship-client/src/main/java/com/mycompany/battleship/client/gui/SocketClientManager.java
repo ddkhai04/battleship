@@ -20,7 +20,7 @@ import javafx.stage.Stage;
 
 public class SocketClientManager {
 
-    public static final String SERVER_IP = "127.0.0.1";
+    public static final String SERVER_IP = "26.242.14.255";
     public static final int SERVER_PORT = 2209;
 
     private static Socket socket;
@@ -250,6 +250,17 @@ public class SocketClientManager {
 
             case "MATCH_START":
                 Platform.runLater(() -> {
+                    
+                    if (gameStage != null) {
+                        gameStage.close();
+                    }
+                    
+                    // 2. Đóng hộp thoại "Đang chờ đối phương..." (nếu có)
+                    if (waitingAlert != null) {
+                        waitingAlert.close();
+                        waitingAlert = null;
+                    }
+                    
                     String[] mParts = rawData.split("\\|");
                     if (lobbyScreen != null) lobbyScreen.batDauTranDau(mParts);
 

@@ -97,4 +97,18 @@ public final class Board {
 
     /** Thua khi mọi ô tàu đều đã bị đánh dấu ("bị bắn lộ hết tàu"). */
     public boolean allShipsRevealed() { return unrevealedShipCells == 0; }
+    
+    /** Xóa hộp quà tại một tọa độ cụ thể (dành cho đạn lan) */
+    public void removeMystery(Point p) {
+        if (inBounds(p)) {
+            mystery[p.getRow()][p.getCol()] = false;
+        }
+    }
+
+    /** Quét sạch mọi hộp quà còn sót lại trên bàn cờ */
+    public void clearAllMysteries() {
+        for (int r = 0; r < SIZE; r++) {
+            Arrays.fill(mystery[r], false);
+        }
+    }
 }
