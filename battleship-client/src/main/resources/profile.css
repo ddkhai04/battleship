@@ -1,0 +1,175 @@
+/* ==========================================================================
+   profile.css - giao dien man Ho so nguoi choi (ProfileGUI)
+   Tong mau cung ho voi game-style.css: nen sang, xanh ngoc (teal) + hong dam.
+   Heatmap dat tau = thang mau teal, heatmap nham ban = thang mau cam-do.
+   ========================================================================== */
+
+.profile-root {
+    -p-bg: #EEF6F7;
+    -p-card: #FFFFFF;
+    -p-text: #1B2A3A;
+    -p-dim: #78909C;
+    -p-teal: #26A69A;
+    -p-teal-dark: #00796B;
+    -p-pink: #D6336C;
+    -p-border: #DDE8EA;
+    -p-empty: #ECEFF1;
+
+    -fx-background-color: linear-gradient(to bottom, #DFF1F3, #F7FBFB);
+}
+
+/* ---------- Thanh tieu de ---------- */
+.profile-avatar {
+    -fx-min-width: 56px;
+    -fx-min-height: 56px;
+    -fx-max-width: 56px;
+    -fx-max-height: 56px;
+    -fx-background-color: linear-gradient(to bottom right, #26A69A, #00796B);
+    -fx-background-radius: 28px;
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0, 121, 107, 0.35), 8, 0, 0, 2);
+}
+
+.profile-ten {
+    -fx-text-fill: -p-text;
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+}
+
+.profile-diem {
+    -fx-text-fill: -p-dim;
+    -fx-font-size: 14px;
+}
+
+.profile-btn-back {
+    -fx-background-color: white;
+    -fx-text-fill: -p-text;
+    -fx-font-weight: bold;
+    -fx-background-radius: 18px;
+    -fx-border-color: -p-border;
+    -fx-border-radius: 18px;
+    -fx-padding: 7 18 7 18;
+    -fx-cursor: hand;
+}
+
+.profile-btn-back:hover {
+    -fx-background-color: -p-pink;
+    -fx-text-fill: white;
+    -fx-border-color: -p-pink;
+}
+
+/* ---------- The thong ke ---------- */
+.profile-the {
+    -fx-background-color: -p-card;
+    -fx-background-radius: 14px;
+    -fx-padding: 14 18 14 18;
+    -fx-effect: dropshadow(gaussian, rgba(27, 42, 58, 0.10), 10, 0, 0, 3);
+    -fx-border-width: 0 0 0 5;
+    -fx-border-radius: 14px;
+}
+
+.profile-the-tyle  { -fx-border-color: transparent transparent transparent #26A69A; }
+.profile-the-thang { -fx-border-color: transparent transparent transparent #43A047; }
+.profile-the-thua  { -fx-border-color: transparent transparent transparent #D6336C; }
+
+.profile-the-tieude {
+    -fx-text-fill: -p-dim;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.profile-so-lon {
+    -fx-text-fill: -p-text;
+    -fx-font-size: 38px;
+    -fx-font-weight: bold;
+}
+
+.profile-the-thang .profile-so-lon { -fx-text-fill: #2E7D32; }
+.profile-the-thua .profile-so-lon  { -fx-text-fill: #C2185B; }
+
+.profile-chu-nho {
+    -fx-text-fill: -p-dim;
+    -fx-font-size: 12px;
+}
+
+.profile-bar {
+    -fx-pref-height: 8px;
+}
+
+.profile-bar .track {
+    -fx-background-color: -p-empty;
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
+}
+
+.profile-bar .bar {
+    -fx-background-color: linear-gradient(to right, #4DB6AC, #00796B);
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
+    -fx-padding: 4px;
+}
+
+/* ---------- Khung heatmap ---------- */
+.profile-heat-khung {
+    -fx-background-color: -p-card;
+    -fx-background-radius: 14px;
+    -fx-padding: 14 16 14 16;
+    -fx-effect: dropshadow(gaussian, rgba(27, 42, 58, 0.10), 10, 0, 0, 3);
+}
+
+.profile-heat-tieude {
+    -fx-text-fill: -p-text;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.heat-nhan {
+    -fx-min-width: 30px;
+    -fx-min-height: 18px;
+    -fx-alignment: center;
+    -fx-text-fill: -p-dim;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.heat-cell {
+    -fx-min-width: 30px;
+    -fx-min-height: 28px;
+    -fx-pref-width: 30px;
+    -fx-pref-height: 28px;
+    -fx-alignment: center;
+    -fx-background-radius: 5px;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+}
+
+.heat-cell:hover {
+    -fx-border-color: #1B2A3A;
+    -fx-border-radius: 5px;
+    -fx-border-width: 1.5;
+}
+
+.heat-chugiai {
+    -fx-min-width: 22px;
+    -fx-min-height: 12px;
+    -fx-background-radius: 3px;
+}
+
+/* ---------- Thang mau heatmap DAT TAU (teal) ---------- */
+.heat-ship-0 { -fx-background-color: #ECEFF1; }
+.heat-ship-1 { -fx-background-color: #B2DFDB; }
+.heat-ship-2 { -fx-background-color: #80CBC4; }
+.heat-ship-3 { -fx-background-color: #4DB6AC; }
+.heat-ship-4 { -fx-background-color: #26A69A; }
+.heat-ship-5 { -fx-background-color: #00695C; }
+
+/* ---------- Thang mau heatmap NHAM BAN (cam -> do) ---------- */
+.heat-shot-0 { -fx-background-color: #ECEFF1; }
+.heat-shot-1 { -fx-background-color: #FFE0B2; -fx-text-fill: #5D4037; }
+.heat-shot-2 { -fx-background-color: #FFB74D; -fx-text-fill: #4E342E; }
+.heat-shot-3 { -fx-background-color: #FF8A65; -fx-text-fill: #3E2723; }
+.heat-shot-4 { -fx-background-color: #EF5350; -fx-text-fill: white; }
+.heat-shot-5 { -fx-background-color: #B71C1C; -fx-text-fill: white; }
