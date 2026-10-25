@@ -1,0 +1,863 @@
+/* ==========================================================================
+   player.css - giao dien phia NGUOI CHOI (Login, Register, Lobby, GameRoom)
+   Nap SAU style.css / game-style.css de ghi de. Moi lop rieng bat dau bang
+   "pl-"; cac lop cu (board-panel, top-bar...) chi bi ghi de BEN TRONG .pl-game
+   nen man Xem truc tiep (Spectate) va Replay khong bi anh huong.
+   Tong mau: bien xanh (#0E3B66 -> #22A0C8), cam san ho (#F2603F), navy (#1B2A3A).
+   Icon ve bang duong SVG (-fx-shape) tren Region -> net, doi mau bang CSS.
+   Font Titan One KHONG co dau tieng Viet -> chi dung cho chu "BATTLESHIP".
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ NUT: nen khop dung vien
+   (bo cac lop insets mac dinh cua modena, tranh nen lo 1px duoi vien) */
+.pl-btn-main, .pl-link, .pl-btn, .pl-btn-logout, .pl-btn-exit,
+.pl-game .dialog-button {
+    -fx-background-insets: 0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ------------------------------------------------------------------ ICON */
+.pl-icon {
+    -fx-background-color: #4A5B70;
+    -fx-scale-shape: true;
+}
+
+.pi-user    { -fx-shape: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"; }
+.pi-users   { -fx-shape: "M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"; }
+.pi-lock    { -fx-shape: "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"; }
+.pi-login   { -fx-shape: "M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"; }
+.pi-adduser { -fx-shape: "M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"; }
+.pi-back    { -fx-shape: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"; }
+.pi-target  { -fx-shape: "M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"; }
+.pi-bolt    { -fx-shape: "M7 2v11h3v9l7-12h-4l4-8z"; }
+.pi-history { -fx-shape: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"; }
+.pi-chart   { -fx-shape: "M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"; }
+.pi-refresh { -fx-shape: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"; }
+.pi-search  { -fx-shape: "M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"; }
+.pi-logout  { -fx-shape: "M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"; }
+.pi-play    { -fx-shape: "M8 5v14l11-7z"; }
+.pi-trophy  { -fx-shape: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"; }
+.pi-star    { -fx-shape: "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"; }
+.pi-anchor  { -fx-shape: "M17 15l1.55 1.55c-.96 1.69-3.33 3.04-5.55 3.37V11h3V9h-3V7.82C14.16 7.4 15 6.3 15 5c0-1.65-1.35-3-3-3S9 3.35 9 5c0 1.3.84 2.4 2 2.82V9H8v2h3v8.92c-2.22-.33-4.59-1.68-5.55-3.37L7 15l-4-3v3c0 3.88 4.92 7 9 7s9-3.12 9-7v-3l-4 3zM12 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"; }
+.pi-boat    { -fx-shape: "M20 21c-1.39 0-2.78-.47-4-1.32-2.44 1.71-5.56 1.71-8 0C6.78 20.53 5.39 21 4 21H2v2h2c1.38 0 2.74-.35 4-.99 2.52 1.29 5.48 1.29 8 0 1.26.65 2.62.99 4 .99h2v-2h-2zM3.95 19H4c1.6 0 3.02-.88 4-2 .98 1.12 2.4 2 4 2s3.02-.88 4-2c.98 1.12 2.4 2 4 2h.05l1.89-6.68c.08-.26.06-.54-.06-.78s-.34-.42-.6-.5L20 10.62V6c0-1.1-.9-2-2-2h-3V1H9v3H6c-1.1 0-2 .9-2 2v4.62l-1.29.42c-.26.08-.48.26-.6.5s-.15.52-.06.78L3.95 19zM6 6h12v3.97L12 8 6 9.97V6z"; }
+.pi-flag    { -fx-shape: "M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z"; }
+
+/* ==========================================================================
+   1. DANG NHAP / DANG KY  (nen bg1.gif giu nguyen tu style.css)
+   ========================================================================== */
+.pl-auth-card {
+    -fx-background-color: rgba(255, 255, 255, 0.62);
+    -fx-background-radius: 26px;
+    -fx-border-color: rgba(255, 255, 255, 0.85);
+    -fx-border-width: 1.5;
+    -fx-border-radius: 26px;
+    -fx-effect: dropshadow(gaussian, rgba(14, 59, 102, 0.40), 34, 0.1, 0, 14);
+}
+
+.pl-logo {
+    -fx-min-width: 68px;  -fx-pref-width: 68px;  -fx-max-width: 68px;
+    -fx-min-height: 68px; -fx-pref-height: 68px; -fx-max-height: 68px;
+    -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F);
+    -fx-background-radius: 20px;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.65), 20, 0.15, 0, 4);
+}
+
+.pl-logo .pl-icon { -fx-background-color: white; }
+
+.pl-brand {
+    -fx-font-family: "Titan One", "Segoe UI Black", "Segoe UI";
+    -fx-font-size: 34px;
+    -fx-text-fill: #1B2A3A;
+    -fx-effect: dropshadow(gaussian, rgba(255, 255, 255, 0.95), 3, 0.9, 0, 0);
+}
+
+.pl-auth-sub {
+    -fx-text-fill: #D94A2F;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* O nhap co icon ben trai (icon dat chong len o nhap, o nhap chua le trai) */
+.pl-input {
+    -fx-background-color: rgba(255, 255, 255, 0.88);
+    -fx-background-radius: 14px;
+    -fx-border-color: rgba(27, 42, 58, 0.16);
+    -fx-border-width: 1.5;
+    -fx-border-radius: 14px;
+    -fx-text-fill: #1B2A3A;
+    -fx-prompt-text-fill: #7A8EA3;
+    -fx-padding: 13 14 13 46;
+    -fx-font-size: 14px;
+}
+
+.pl-input:focused {
+    -fx-background-color: white;
+    -fx-border-color: #2F9BD6;
+    -fx-effect: dropshadow(gaussian, rgba(47, 155, 214, 0.35), 12, 0, 0, 0);
+}
+
+.pl-input.input-error {
+    -fx-border-color: #E63946;
+    -fx-border-width: 2;
+}
+
+.pl-input-icon { -fx-background-color: #7A8EA3; }
+
+/* Nut chinh cam san ho phat sang */
+.pl-btn-main {
+    -fx-background-color: linear-gradient(to bottom, #FF8466, #F2603F);
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-padding: 13 20 13 20;
+    -fx-background-radius: 28px;
+    -fx-graphic-text-gap: 10;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.50), 16, 0, 0, 5);
+}
+
+.pl-btn-main:hover {
+    -fx-background-color: linear-gradient(to bottom, #F2603F, #D94A2B);
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.75), 22, 0.05, 0, 6);
+}
+
+.pl-btn-main:pressed { -fx-translate-y: 1; }
+
+.pl-btn-main:disabled {
+    -fx-opacity: 0.55;
+    -fx-effect: null;
+}
+
+.pl-btn-main .pl-icon { -fx-background-color: white; }
+
+.pl-link {
+    -fx-background-color: transparent;
+    -fx-text-fill: #35506A;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.pl-link .pl-icon { -fx-background-color: #35506A; }
+.pl-link:hover { -fx-text-fill: #D94A2F; -fx-underline: true; }
+.pl-link:hover .pl-icon { -fx-background-color: #D94A2F; }
+
+/* ==========================================================================
+   2. SANH CHO (LobbyGUI)
+   ========================================================================== */
+.pl-lobby {
+    -fx-background-color: linear-gradient(to bottom, #D9EFFA 0%, #F2F9FD 100%);
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Thanh tieu de mau bien */
+.pl-header {
+    -fx-background-color: linear-gradient(to right, #0E3B66 0%, #1673A8 60%, #22A0C8 100%);
+    -fx-padding: 14 28 14 28;
+    -fx-effect: dropshadow(gaussian, rgba(14, 59, 102, 0.35), 16, 0, 0, 4);
+}
+
+.pl-header-logo {
+    -fx-min-width: 44px;  -fx-pref-width: 44px;  -fx-max-width: 44px;
+    -fx-min-height: 44px; -fx-pref-height: 44px; -fx-max-height: 44px;
+    -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F);
+    -fx-background-radius: 14px;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.65), 14, 0.15, 0, 0);
+}
+
+.pl-header-logo .pl-icon { -fx-background-color: white; }
+
+.pl-header-brand {
+    -fx-font-family: "Titan One", "Segoe UI Black", "Segoe UI";
+    -fx-font-size: 24px;
+    -fx-text-fill: white;
+}
+
+.pl-header-sub {
+    -fx-text-fill: #A5E4FF;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+.pl-chip {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 30px;
+    -fx-border-color: rgba(255, 255, 255, 0.22);
+    -fx-border-radius: 30px;
+    -fx-padding: 5 16 5 5;
+}
+
+.pl-avatar {
+    -fx-min-width: 40px;  -fx-pref-width: 40px;  -fx-max-width: 40px;
+    -fx-min-height: 40px; -fx-pref-height: 40px; -fx-max-height: 40px;
+    -fx-background-radius: 20px;
+    -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F);
+    -fx-border-color: white;
+    -fx-border-width: 2px;
+    -fx-border-radius: 20px;
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+.pl-chip-name {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.pl-chip-score {
+    -fx-text-fill: #FDE68A;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 4;
+}
+
+.pl-chip-score .pl-icon { -fx-background-color: #FCD34D; }
+
+.pl-btn-logout {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-border-color: rgba(255, 255, 255, 0.30);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 16 9 16;
+    -fx-graphic-text-gap: 8;
+    -fx-cursor: hand;
+}
+
+.pl-btn-logout .pl-icon { -fx-background-color: white; }
+
+.pl-btn-logout:hover {
+    -fx-background-color: #F2603F;
+    -fx-border-color: #F2603F;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.6), 12, 0, 0, 0);
+}
+
+/* Banner chao mung */
+.pl-hero {
+    -fx-background-color: linear-gradient(to right, #FF8A65 0%, #F2603F 55%, #E8457A 100%);
+    -fx-background-radius: 20px;
+    -fx-padding: 20 26 20 26;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.40), 22, 0, 0, 8);
+}
+
+.pl-hero-title {
+    -fx-font-family: "Segoe UI Black", "Segoe UI";
+    -fx-font-weight: bold;
+    -fx-font-size: 24px;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(120, 30, 10, 0.35), 6, 0, 0, 2);
+}
+
+.pl-hero-sub {
+    -fx-text-fill: rgba(255, 255, 255, 0.90);
+    -fx-font-size: 13px;
+}
+
+.pl-hero-anchor { -fx-background-color: rgba(255, 255, 255, 0.22); }
+
+.pl-stat {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 14px;
+    -fx-border-color: rgba(255, 255, 255, 0.30);
+    -fx-border-radius: 14px;
+    -fx-padding: 8 16 8 12;
+}
+
+.pl-stat .pl-icon { -fx-background-color: white; }
+
+.pl-stat-so {
+    -fx-text-fill: white;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.pl-stat-nhan {
+    -fx-text-fill: rgba(255, 255, 255, 0.85);
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+/* The trang chua cac tab */
+.pl-card {
+    -fx-background-color: white;
+    -fx-background-radius: 20px;
+    -fx-effect: dropshadow(gaussian, rgba(14, 59, 102, 0.12), 22, 0, 0, 6);
+}
+
+.pl-tabs {
+    -fx-background-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-tab-min-height: 36px;
+    -fx-tab-max-height: 36px;
+}
+
+.pl-tabs > .tab-header-area { -fx-padding: 14 16 4 16; }
+.pl-tabs > .tab-header-area > .tab-header-background { -fx-background-color: transparent; }
+
+.pl-tabs .tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0 4 0 0;
+    -fx-background-radius: 12px;
+    -fx-padding: 4 18 4 14;
+    -fx-cursor: hand;
+}
+
+.pl-tabs .tab:hover { -fx-background-color: #EAF5FB; }
+
+.pl-tabs .tab:selected {
+    -fx-background-color: linear-gradient(to bottom, #1E8BC3, #0E5E94);
+    -fx-effect: dropshadow(gaussian, rgba(14, 94, 148, 0.40), 10, 0, 0, 3);
+}
+
+.pl-tabs .tab .tab-label {
+    -fx-text-fill: #35506A;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 8;
+}
+
+.pl-tabs .tab:selected .tab-label { -fx-text-fill: white; }
+.pl-tabs .tab .pl-icon { -fx-background-color: #7A8EA3; }
+.pl-tabs .tab:selected .pl-icon { -fx-background-color: white; }
+
+.pl-tabs .tab .focus-indicator,
+.pl-tabs .tab:focused .focus-indicator {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.pl-tabs > .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.pl-section-title {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.pl-section-sub {
+    -fx-text-fill: #7A8EA3;
+    -fx-font-size: 12px;
+}
+
+/* O tim kiem */
+.pl-search {
+    -fx-background-color: #F3F8FC;
+    -fx-background-radius: 12px;
+    -fx-border-color: #D6E4F0;
+    -fx-border-radius: 12px;
+    -fx-text-fill: #1B2A3A;
+    -fx-prompt-text-fill: #8EA2B6;
+    -fx-padding: 9 12 9 38;
+    -fx-font-size: 13px;
+}
+
+.pl-search:focused {
+    -fx-background-color: white;
+    -fx-border-color: #2F9BD6;
+}
+
+.pl-btn {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10px;
+    -fx-border-radius: 10px;
+    -fx-padding: 9 18 9 16;
+    -fx-graphic-text-gap: 8;
+    -fx-cursor: hand;
+}
+
+.pl-btn:pressed { -fx-translate-y: 1; }
+
+.pl-btn-ghost {
+    -fx-background-color: white;
+    -fx-border-color: #D6E4F0;
+    -fx-text-fill: #1B2A3A;
+}
+
+.pl-btn-ghost:hover {
+    -fx-background-color: #F1F7FC;
+    -fx-border-color: #8EB7D6;
+}
+
+.pl-btn-ghost .pl-icon { -fx-background-color: #35506A; }
+
+/* Nut trong dong bang */
+.pl-btn-sm {
+    -fx-font-size: 12px;
+    -fx-padding: 6 14 6 12;
+    -fx-background-radius: 18px;
+    -fx-border-radius: 18px;
+    -fx-graphic-text-gap: 6;
+}
+
+.pl-btn-fight {
+    -fx-background-color: linear-gradient(to bottom, #FF8466, #F2603F);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.40), 8, 0, 0, 2);
+}
+
+.pl-btn-fight .pl-icon { -fx-background-color: white; }
+
+.pl-btn-fight:hover {
+    -fx-background-color: linear-gradient(to bottom, #F2603F, #D94A2B);
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.70), 14, 0.05, 0, 3);
+}
+
+.pl-btn-replay {
+    -fx-background-color: #E6FAF7;
+    -fx-text-fill: #0F766E;
+}
+
+.pl-btn-replay .pl-icon { -fx-background-color: #0F766E; }
+
+.pl-btn-replay:hover {
+    -fx-background-color: #14B8A6;
+    -fx-text-fill: white;
+}
+
+.pl-btn-replay:hover .pl-icon { -fx-background-color: white; }
+
+/* Bang du lieu */
+.pl-table {
+    -fx-background-color: white;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-color: #E1ECF5;
+    -fx-border-width: 1;
+    -fx-border-radius: 14px;
+    -fx-background-radius: 14px;
+    -fx-table-cell-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-selection-bar: #EAF5FB;
+    -fx-selection-bar-non-focused: #EAF5FB;
+}
+
+.pl-table .column-header-background,
+.pl-table .filler { -fx-background-color: #F4F9FC; }
+
+.pl-table .column-header {
+    -fx-background-color: #F4F9FC;
+    -fx-border-color: transparent transparent #E1ECF5 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 42px;
+    -fx-padding: 0 14 0 14;
+}
+
+.pl-table .column-header .label {
+    -fx-text-fill: #6B8299;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER-LEFT;
+}
+
+.pl-table .table-row-cell {
+    -fx-background-color: white;
+    -fx-cell-size: 56px;
+    -fx-table-cell-border-color: transparent;
+    -fx-border-color: transparent transparent #EEF4F9 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.pl-table .table-row-cell:hover { -fx-background-color: #F3F9FD; }
+.pl-table .table-row-cell:selected { -fx-background-color: #EAF5FB; }
+.pl-table .table-row-cell:empty { -fx-background-color: white; -fx-border-color: transparent; }
+
+/* Dong cua chinh minh trong bang xep hang */
+.pl-table .table-row-cell.pl-row-me { -fx-background-color: #FFF4EC; }
+
+.pl-table .table-cell {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 13px;
+    -fx-padding: 0 14 0 14;
+    -fx-alignment: CENTER-LEFT;
+}
+
+.pl-table .table-row-cell:selected .table-cell { -fx-text-fill: #1B2A3A; }
+
+.pl-table .scroll-bar:vertical,
+.pl-table .scroll-bar:horizontal { -fx-background-color: transparent; -fx-padding: 2; }
+.pl-table .scroll-bar .thumb { -fx-background-color: #C6D8E8; -fx-background-radius: 6px; }
+.pl-table .scroll-bar .thumb:hover { -fx-background-color: #92B2CC; }
+.pl-table .scroll-bar .increment-button,
+.pl-table .scroll-bar .decrement-button { -fx-padding: 0; -fx-background-color: transparent; }
+.pl-table .scroll-bar .increment-arrow,
+.pl-table .scroll-bar .decrement-arrow { -fx-padding: 0; }
+.pl-table .corner { -fx-background-color: transparent; }
+
+/* Noi dung trong o */
+.pl-ten {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+}
+
+.pl-phu {
+    -fx-text-fill: #8EA2B6;
+    -fx-font-size: 11.5px;
+}
+
+.pl-id {
+    -fx-text-fill: #9AAEC2;
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-weight: bold;
+}
+
+.pl-avatar-sm {
+    -fx-min-width: 34px;  -fx-pref-width: 34px;  -fx-max-width: 34px;
+    -fx-min-height: 34px; -fx-pref-height: 34px; -fx-max-height: 34px;
+    -fx-background-radius: 17px;
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.pl-av-0 { -fx-background-color: linear-gradient(to bottom right, #60A5FA, #2563EB); }
+.pl-av-1 { -fx-background-color: linear-gradient(to bottom right, #2DD4BF, #0D9488); }
+.pl-av-2 { -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F); }
+.pl-av-3 { -fx-background-color: linear-gradient(to bottom right, #A78BFA, #7C3AED); }
+.pl-av-4 { -fx-background-color: linear-gradient(to bottom right, #FBBF24, #D97706); }
+.pl-av-5 { -fx-background-color: linear-gradient(to bottom right, #F472B6, #DB2777); }
+
+.pl-pill {
+    -fx-background-radius: 20px;
+    -fx-padding: 4 12 4 10;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 6;
+    -fx-background-color: #EEF2F6;
+    -fx-text-fill: #475569;
+}
+
+.pl-dot { -fx-fill: #94A3B8; }
+
+.pl-pill-online  { -fx-background-color: #DCFCE7; -fx-text-fill: #15803D; }
+.pl-pill-online .pl-dot { -fx-fill: #22C55E; }
+.pl-pill-offline { -fx-background-color: #EEF2F6; -fx-text-fill: #64748B; }
+.pl-pill-busy    { -fx-background-color: #FEF3C7; -fx-text-fill: #B45309; }
+.pl-pill-busy .pl-dot { -fx-fill: #F59E0B; }
+
+.pl-pill-win  { -fx-background-color: #DCFCE7; -fx-text-fill: #15803D; }
+.pl-pill-win .pl-icon { -fx-background-color: #16A34A; }
+.pl-pill-lose { -fx-background-color: #FEE2E2; -fx-text-fill: #B91C1C; }
+.pl-pill-lose .pl-icon { -fx-background-color: #DC2626; }
+
+.pl-diem {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 6;
+}
+
+.pl-diem .pl-icon { -fx-background-color: #F59E0B; }
+
+.pl-thoigian { -fx-text-fill: #6B8299; -fx-font-size: 12.5px; }
+
+/* Huy chuong top 3 */
+.pl-medal {
+    -fx-min-width: 30px;  -fx-pref-width: 30px;  -fx-max-width: 30px;
+    -fx-min-height: 30px; -fx-pref-height: 30px; -fx-max-height: 30px;
+    -fx-background-radius: 15px;
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.pl-medal-1 { -fx-background-color: linear-gradient(to bottom right, #FDE68A, #F59E0B); -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.55), 8, 0, 0, 2); }
+.pl-medal-2 { -fx-background-color: linear-gradient(to bottom right, #E5E7EB, #9CA3AF); -fx-effect: dropshadow(gaussian, rgba(107, 114, 128, 0.45), 8, 0, 0, 2); }
+.pl-medal-3 { -fx-background-color: linear-gradient(to bottom right, #FDBA74, #C2410C); -fx-effect: dropshadow(gaussian, rgba(194, 65, 12, 0.45), 8, 0, 0, 2); }
+
+.pl-hang { -fx-text-fill: #8EA2B6; -fx-font-weight: bold; -fx-padding: 0 0 0 9; }
+
+/* Trang trong (bang chua co du lieu) */
+.pl-empty-icon {
+    -fx-min-width: 72px;  -fx-pref-width: 72px;  -fx-max-width: 72px;
+    -fx-min-height: 72px; -fx-pref-height: 72px; -fx-max-height: 72px;
+    -fx-background-color: #EAF5FB;
+    -fx-background-radius: 36px;
+}
+
+.pl-empty-icon .pl-icon { -fx-background-color: #8EB7D6; }
+.pl-empty-title { -fx-text-fill: #35506A; -fx-font-size: 14px; -fx-font-weight: bold; }
+.pl-empty-sub { -fx-text-fill: #8EA2B6; -fx-font-size: 12px; }
+
+/* ==========================================================================
+   3. TRAN DAU (GameRoomGUI) - chi ghi de ben trong .pl-game
+   ========================================================================== */
+.pl-game {
+    -fx-background-color: linear-gradient(to bottom, #0B2E50 0%, #135F92 50%, #2C9AC9 100%);
+}
+
+.pl-game .game-root,
+.pl-game .boards-area,
+.pl-game .app-background {
+    -fx-background-color: transparent;
+}
+
+/* 2 dai tren/duoi de TRONG SUOT: chung nam trong khung 1000px duoc phong to
+   nen neu to mau thi se lo mep khi cua so rong hon ty le 1000x680 */
+.pl-game .top-bar {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-effect: null;
+}
+
+.pl-game .player-name {
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+}
+
+.pl-game .player-avatar {
+    -fx-stroke: white;
+    -fx-stroke-width: 2.5;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 6, 0, 0, 2);
+}
+
+.pl-game .avatar-color-1 { -fx-fill: linear-gradient(to bottom right, #2DD4BF, #0D9488); }
+.pl-game .avatar-color-2 { -fx-fill: linear-gradient(to bottom right, #FF9472, #F2603F); }
+.pl-game .player-avatar-initial { -fx-text-fill: white; -fx-font-size: 16px; }
+
+.pl-game .score-badge {
+    -fx-background-color: rgba(252, 211, 77, 0.18);
+    -fx-text-fill: #FDE68A;
+}
+
+/* Dong ho dang vong tron dem nguoc */
+.pl-timer-bg {
+    -fx-fill: rgba(255, 255, 255, 0.10);
+    -fx-stroke: rgba(255, 255, 255, 0.22);
+    -fx-stroke-width: 6;
+}
+
+.pl-timer-arc {
+    -fx-fill: transparent;
+    -fx-stroke: #4ADE80;
+    -fx-stroke-width: 6;
+    -fx-stroke-line-cap: round;
+    -fx-effect: dropshadow(gaussian, rgba(74, 222, 128, 0.70), 8, 0, 0, 0);
+}
+
+.pl-timer-arc.pl-timer-arc-warn {
+    -fx-stroke: #F87171;
+    -fx-effect: dropshadow(gaussian, rgba(248, 113, 113, 0.80), 10, 0, 0, 0);
+}
+
+.pl-game .timer-label {
+    -fx-text-fill: white;
+    -fx-font-size: 22px;
+}
+
+.pl-game .timer-label-warn { -fx-text-fill: #FCA5A5; }
+
+.pl-game .turn-indicator {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-padding: 5 16 5 16;
+    -fx-background-radius: 16px;
+}
+
+.pl-game .turn-indicator-active {
+    -fx-background-color: linear-gradient(to bottom, #FF8466, #F2603F);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.80), 14, 0.1, 0, 0);
+}
+
+.pl-game .turn-indicator-waiting {
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-text-fill: rgba(255, 255, 255, 0.85);
+}
+
+/* Nut thoat tran */
+.pl-btn-exit {
+    -fx-background-color: rgba(239, 68, 68, 0.20);
+    -fx-border-color: rgba(252, 165, 165, 0.60);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 14 8 12;
+    -fx-graphic-text-gap: 6;
+    -fx-cursor: hand;
+}
+
+.pl-btn-exit .pl-icon { -fx-background-color: white; }
+
+.pl-btn-exit:hover {
+    -fx-background-color: #EF4444;
+    -fx-border-color: #EF4444;
+    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.65), 12, 0, 0, 0);
+}
+
+/* 2 ban co */
+.pl-game .board-panel {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.35), 22, 0, 0, 8);
+}
+
+.pl-game .board-panel.pl-board-active {
+    -fx-effect: dropshadow(gaussian, rgba(255, 120, 80, 0.95), 30, 0.45, 0, 0);
+}
+
+.pl-game .board-header {
+    -fx-padding: 11 16 11 16;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 14 14 0 0;
+    -fx-graphic-text-gap: 8;
+}
+
+.pl-game .board-header-fleet {
+    -fx-background-color: linear-gradient(to right, #14B8A6, #0D9488);
+    -fx-text-fill: white;
+}
+
+.pl-game .board-header-enemy {
+    -fx-background-color: linear-gradient(to right, #FF8466, #E8457A);
+    -fx-text-fill: white;
+}
+
+.pl-game .board-header .pl-icon { -fx-background-color: white; }
+
+.pl-game .grid-board { -fx-background-radius: 0 0 16 16; }
+
+/* Kho dan */
+.pl-game .inventory-bar {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+/* Luu y: ToggleButton mac dinh (modena) co -fx-background-insets nhieu lop (vd "0 0 -1 0")
+   lam nen tran ra ngoai vien 1px -> vien cam trong bi lech. Ep insets = 0 o moi trang thai. */
+.pl-game .weapon-button,
+.pl-game .weapon-button:hover,
+.pl-game .weapon-button:focused,
+.pl-game .weapon-button:selected,
+.pl-game .weapon-button:selected:focused {
+    -fx-background-insets: 0;
+    -fx-background-radius: 14px;
+    -fx-border-insets: 0;
+    -fx-border-radius: 14px;
+    -fx-border-width: 2.5;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.pl-game .weapon-button {
+    -fx-background-color: rgba(255, 255, 255, 0.92);
+    -fx-border-color: transparent;
+    -fx-padding: 8 18 8 18;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 8, 0, 0, 3);
+}
+
+.pl-game .weapon-button:hover {
+    -fx-border-color: #FDBA74;
+    -fx-background-color: white;
+}
+
+.pl-game .weapon-button:selected,
+.pl-game .weapon-button:selected:focused {
+    -fx-background-color: #FFF4EC;
+    -fx-border-color: #F2603F;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.80), 16, 0.15, 0, 0);
+}
+
+.pl-game .weapon-name {
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #35506A;
+}
+
+.pl-game .weapon-count-badge {
+    -fx-background-color: linear-gradient(to bottom, #FF8466, #E11D48);
+    -fx-font-size: 11px;
+    -fx-background-radius: 10px;
+    -fx-padding: 1 7 1 7;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.30), 4, 0, 0, 1);
+}
+
+/* Man che dem nguoc + hop ket qua */
+.pl-game .overlay-dim {
+    -fx-background-color: rgba(6, 22, 40, 0.78);
+}
+
+.pl-game .countdown-label {
+    -fx-font-family: "Segoe UI Black", "Segoe UI";
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-font-size: 120px;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.95), 30, 0.3, 0, 0);
+}
+
+.pl-game .dialog-box {
+    -fx-background-color: white;
+    -fx-border-color: transparent;
+    -fx-background-radius: 24px;
+    -fx-max-width: 400;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.45), 40, 0.1, 0, 12);
+}
+
+.pl-game .dialog-icon {
+    -fx-font-size: 56px;
+    -fx-text-fill: #F59E0B;
+    -fx-effect: dropshadow(gaussian, rgba(245, 158, 11, 0.6), 14, 0.2, 0, 0);
+}
+
+.pl-game .dialog-title {
+    -fx-font-family: "Segoe UI Black", "Segoe UI";
+    -fx-font-weight: bold;
+    -fx-font-size: 32px;
+}
+
+.pl-game .dialog-title-win  { -fx-text-fill: #0D9488; }
+.pl-game .dialog-title-lose { -fx-text-fill: #E11D48; }
+
+.pl-game .dialog-subtitle {
+    -fx-text-fill: #6B8299;
+    -fx-font-size: 14px;
+}
+
+.pl-game .dialog-button {
+    -fx-background-radius: 22px;
+    -fx-border-radius: 22px;
+    -fx-padding: 10 26 10 26;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.pl-game .dialog-button-primary {
+    -fx-background-color: linear-gradient(to bottom, #FF8466, #F2603F);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.50), 12, 0, 0, 4);
+}
+
+.pl-game .dialog-button-primary:hover {
+    -fx-background-color: linear-gradient(to bottom, #F2603F, #D94A2B);
+}
+
+.pl-game .dialog-button-primary:disabled { -fx-opacity: 0.6; }
+
+.pl-game .dialog-button-secondary {
+    -fx-background-color: white;
+    -fx-text-fill: #35506A;
+    -fx-border-color: #D6E4F0;
+}
+
+.pl-game .dialog-button-secondary:hover {
+    -fx-background-color: #F1F7FC;
+    -fx-border-color: #8EB7D6;
+}

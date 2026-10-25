@@ -8,6 +8,9 @@ import com.mycompany.battleship.common.model.MessageDTO;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import javafx.animation.Animation;
+import javafx.animation.FadeTransition;
+import javafx.animation.TranslateTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -15,6 +18,7 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
@@ -26,6 +30,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
@@ -36,7 +41,9 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 /**
  * @author DINH THE LINH
@@ -49,6 +56,11 @@ public class LobbyGUI extends Application {
     private Stage primaryStage;
     private Label lblUser;
     private Label lblScore;
+
+    // 3 chỉ số trên banner chào mừng (chỉ để hiển thị)
+    private Label lblBannerDiem = new Label("0");
+    private Label lblBannerOnline = new Label("0");
+    private Label lblBannerHang = new Label("—");
 
     private TextField txtSearch;
     private TableView<String[]> tblPlayers;
@@ -76,8 +88,11 @@ public class LobbyGUI extends Application {
 
         SocketClientManager.lobbyScreen = this;
 
+        // Nạp font tiêu đề "BATTLESHIP"
+        Font.loadFont(getClass().getResourceAsStream("/TitanOne-Regular.ttf"), 24);
+
         BorderPane root = new BorderPane();
-        root.getStyleClass().add("lobby-root"); 
+        root.getStyleClass().add("pl-lobby");
         root.setTop(taoThanhTieuDe());
 
         TabPane tabPane = new TabPane();
@@ -85,8 +100,8 @@ public class LobbyGUI extends Application {
         tabPane.getTabs().add(taoTabLichSu());
         tabPane.getTabs().add(taoTabXepHang());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.getStyleClass().add("lobby-tabs");
-        
+        tabPane.getStyleClass().add("pl-tabs");
+
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             if (newTab != null) {
                 if (newTab.getText().equals("Bảng xếp hạng")) {
@@ -94,21 +109,40 @@ public class LobbyGUI extends Application {
                 } else if (newTab.getText().equals("Lịch sử đấu")) {
                     SocketClientManager.guiTinNhan(new MessageDTO("MATCH_HISTORY", null));
                 } else if (newTab.getText().equals("Danh sách người chơi")) {
-                    SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null)); 
+                    SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
                 }
             }
         });
-        
-        BorderPane.setMargin(tabPane, new Insets(20, 28, 28, 28));
-        root.setCenter(tabPane);
+
+        // Khung trắng bo góc bọc ngoài TabPane
+        StackPane theTab = new StackPane(tabPane);
+        theTab.getStyleClass().add("pl-card");
+
+        HBox banner = taoBannerChaoMung();
+        VBox noiDung = new VBox(18, banner, theTab);
+        noiDung.setPadding(new Insets(20, 28, 24, 28));
+        VBox.setVgrow(theTab, Priority.ALWAYS);
+        root.setCenter(noiDung);
 
         SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
+        // Xin luôn bảng xếp hạng để banner biết hạng hiện tại của mình
+        SocketClientManager.guiTinNhan(new MessageDTO("LEADERBOARD", null));
 
-        Scene scene = new Scene(root, 950, 600);
+        Scene scene = new Scene(root, 1100, 720);
         scene.getStylesheets().add(duongDanCss());
+        scene.getStylesheets().add(getClass().getResource("/player.css").toExternalForm());
 
         primaryStage.setScene(scene);
+        primaryStage.setResizable(true);     // màn Đăng nhập khóa resize, sang sảnh mở lại
+        primaryStage.setMinWidth(980);
+        primaryStage.setMinHeight(660);
         primaryStage.show();
+
+        // Hiệu ứng mở màn: banner hiện dần
+        banner.setOpacity(0);
+        FadeTransition hien = new FadeTransition(Duration.millis(500), banner);
+        hien.setToValue(1);
+        hien.play();
     }
     public static void dongSanhChoHienTai() {
         Platform.runLater(() -> {
@@ -128,14 +162,69 @@ public class LobbyGUI extends Application {
         DialogStyle.apply(alert);
     }
 
+    // =================================================================== HÀM PHỤ DỰNG GIAO DIỆN
+
+    /** Tạo icon vẽ bằng đường SVG (hình dạng nằm trong player.css, ví dụ "pi-bolt"). */
+    private Region taoIcon(String loai, double co) {
+        Region icon = new Region();
+        icon.getStyleClass().addAll("pl-icon", loai);
+        icon.setMinSize(co, co);
+        icon.setPrefSize(co, co);
+        icon.setMaxSize(co, co);
+        return icon;
+    }
+
+    /** Nút có icon; kieu = "pl-btn-ghost" / "pl-btn-fight" / "pl-btn-replay"... */
+    private Button taoNut(String chu, String icon, String... kieu) {
+        Button nut = new Button(chu, taoIcon(icon, 14));
+        nut.getStyleClass().add("pl-btn");
+        nut.getStyleClass().addAll(kieu);
+        return nut;
+    }
+
+    /** Màn hình trống khi bảng chưa có dữ liệu: icon tròn + tiêu đề + mô tả. */
+    private VBox taoTrangTrong(String icon, String tieuDe, String moTa) {
+        StackPane khungIcon = new StackPane(taoIcon(icon, 34));
+        khungIcon.getStyleClass().add("pl-empty-icon");
+        Label lblTieuDe = new Label(tieuDe);
+        lblTieuDe.getStyleClass().add("pl-empty-title");
+        Label lblMoTa = new Label(moTa);
+        lblMoTa.getStyleClass().add("pl-empty-sub");
+        VBox box = new VBox(8, khungIcon, lblTieuDe, lblMoTa);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    /** Avatar tròn nhỏ, màu cố định theo tên. */
+    private Label taoAvatarNho(String ten) {
+        String t = (ten == null || ten.isEmpty()) ? "?" : ten;
+        Label av = new Label(t.substring(0, 1).toUpperCase());
+        av.getStyleClass().addAll("pl-avatar-sm", "pl-av-" + Math.abs(t.hashCode() % 6));
+        return av;
+    }
+
+    /** Ô "avatar + tên" dùng chung cho các bảng. */
+    private HBox taoONguoiChoi(String ten) {
+        Label lblTen = new Label(ten);
+        lblTen.getStyleClass().add("pl-ten");
+        HBox hang = new HBox(10, taoAvatarNho(ten), lblTen);
+        hang.setAlignment(Pos.CENTER_LEFT);
+        if (ten != null && ten.equalsIgnoreCase(currentUsername)) {
+            Label ban = new Label("(Bạn)");
+            ban.getStyleClass().add("pl-phu");
+            hang.getChildren().add(ban);
+        }
+        return hang;
+    }
+
     private <T> void tuyChinhBang(TableView<T> bang) {
-        bang.getStyleClass().add("lobby-table");
+        bang.getStyleClass().add("pl-table");
         bang.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
-        bang.setPlaceholder(new Label("Chưa có dữ liệu"));
+        bang.setPlaceholder(taoTrangTrong("pi-refresh", "Chưa có dữ liệu", "Bấm \"Làm mới\" để tải lại"));
 
         Rectangle clip = new Rectangle();
-        clip.setArcWidth(20);
-        clip.setArcHeight(20);
+        clip.setArcWidth(28);
+        clip.setArcHeight(28);
         clip.widthProperty().bind(bang.widthProperty());
         clip.heightProperty().bind(bang.heightProperty());
         bang.setClip(clip);
@@ -143,49 +232,73 @@ public class LobbyGUI extends Application {
         VBox.setVgrow(bang, Priority.ALWAYS);
     }
 
-    private HBox taoThanhCongCu(javafx.scene.Node... nodes) {
-        HBox toolbar = new HBox(10, nodes);
-        toolbar.setPadding(new Insets(16));
+    /** Thanh đầu mỗi tab: tiêu đề + mô tả bên trái, các ô/nút bên phải. */
+    private HBox taoThanhCongCu(String tieuDe, String moTa, Node... nodes) {
+        Label lblTieuDe = new Label(tieuDe);
+        lblTieuDe.getStyleClass().add("pl-section-title");
+        Label lblMoTa = new Label(moTa);
+        lblMoTa.getStyleClass().add("pl-section-sub");
+        VBox chu = new VBox(2, lblTieuDe, lblMoTa);
+
+        Region khoangTrong = new Region();
+        HBox.setHgrow(khoangTrong, Priority.ALWAYS);
+
+        HBox toolbar = new HBox(10);
+        toolbar.getChildren().addAll(chu, khoangTrong);
+        toolbar.getChildren().addAll(nodes);
+        toolbar.setPadding(new Insets(14, 20, 14, 20));
         toolbar.setAlignment(Pos.CENTER_LEFT);
         return toolbar;
     }
 
     private VBox taoNoiDungTab(HBox toolbar, TableView<?> bang) {
-        VBox.setMargin(bang, new Insets(0, 16, 16, 16));
+        VBox.setMargin(bang, new Insets(0, 20, 20, 20));
         return new VBox(toolbar, bang);
     }
+
+    private Tab taoTab(String ten, String icon, Node noiDung) {
+        Tab tab = new Tab(ten, noiDung);
+        tab.setGraphic(taoIcon(icon, 16));
+        return tab;
+    }
+
+    // =================================================================== THANH TIÊU ĐỀ + BANNER
 
     private HBox taoThanhTieuDe() {
         String ten = currentUsername == null ? "" : currentUsername;
 
-        Circle avatarBg = new Circle(20);
-        avatarBg.getStyleClass().addAll("player-avatar", "avatar-color-1");
-        Label initial = new Label(ten.isEmpty() ? "?" : ten.substring(0, 1).toUpperCase());
-        initial.getStyleClass().add("player-avatar-initial");
-        StackPane avatar = new StackPane(avatarBg, initial);
+        StackPane logo = new StackPane(taoIcon("pi-anchor", 26));
+        logo.getStyleClass().add("pl-header-logo");
+
+        Label lblTitle = new Label("BATTLESHIP");
+        lblTitle.getStyleClass().add("pl-header-brand");
+        Label lblSub = new Label("S Ả N H   C H Ờ   ·   O N L I N E");
+        lblSub.getStyleClass().add("pl-header-sub");
+        VBox titleBox = new VBox(0, lblTitle, lblSub);
+        titleBox.setAlignment(Pos.CENTER_LEFT);
+
+        HBox brand = new HBox(14, logo, titleBox);
+        brand.setAlignment(Pos.CENTER_LEFT);
+
+        // Thẻ người chơi: avatar + tên + điểm
+        Label avatar = new Label(ten.isEmpty() ? "?" : ten.substring(0, 1).toUpperCase());
+        avatar.getStyleClass().add("pl-avatar");
 
         lblUser = new Label(ten);
-        lblUser.getStyleClass().add("player-name");
+        lblUser.getStyleClass().add("pl-chip-name");
 
-        lblScore = new Label("★ " + currentScore);
-        lblScore.getStyleClass().add("score-badge");
+        lblScore = new Label(currentScore + " điểm", taoIcon("pi-star", 12));
+        lblScore.getStyleClass().add("pl-chip-score");
 
-        VBox textBox = new VBox(3, lblUser, lblScore);
+        VBox textBox = new VBox(1, lblUser, lblScore);
         textBox.setAlignment(Pos.CENTER_LEFT);
 
-        HBox userBox = new HBox(10, avatar, textBox);
-        userBox.setAlignment(Pos.CENTER_LEFT);
-        userBox.setPrefWidth(280);
+        HBox chip = new HBox(10, avatar, textBox);
+        chip.setAlignment(Pos.CENTER_LEFT);
+        chip.getStyleClass().add("pl-chip");
 
-        Label lblTitle = new Label("BATTLE SHIP");
-        lblTitle.getStyleClass().add("lobby-title");
-        Label lblSub = new Label("COMMAND CENTER");
-        lblSub.getStyleClass().add("lobby-subtitle");
-        VBox titleBox = new VBox(2, lblTitle, lblSub);
-        titleBox.setAlignment(Pos.CENTER);
-
-        Button btnLogout = new Button("Đăng xuất");
-        btnLogout.getStyleClass().add("lobby-btn-exit");
+        Button btnLogout = new Button("Đăng xuất", taoIcon("pi-logout", 15));
+        btnLogout.getStyleClass().add("pl-btn-logout");
         btnLogout.setOnAction(e -> {
             SocketClientManager.guiTinNhan(new MessageDTO("LOGOUT", null));
             SocketClientManager.dongKetNoi();
@@ -193,85 +306,158 @@ public class LobbyGUI extends Application {
             loginGUI.start(primaryStage);
         });
 
-        HBox rightBox = new HBox(btnLogout);
-        rightBox.setAlignment(Pos.CENTER_RIGHT);
-        rightBox.setPrefWidth(280);
+        Region khoangTrong = new Region();
+        HBox.setHgrow(khoangTrong, Priority.ALWAYS);
 
-        Region spacerLeft = new Region();
-        Region spacerRight = new Region();
-        HBox.setHgrow(spacerLeft, Priority.ALWAYS);
-        HBox.setHgrow(spacerRight, Priority.ALWAYS);
-
-        HBox box = new HBox(userBox, spacerLeft, titleBox, spacerRight, rightBox);
-        box.setAlignment(Pos.CENTER);
-        box.setPadding(new Insets(20, 28, 14, 28));
-        box.getStyleClass().add("top-bar");
+        HBox box = new HBox(16, brand, khoangTrong, chip, btnLogout);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.getStyleClass().add("pl-header");
         return box;
     }
+
+    /** 1 ô chỉ số trên banner: icon + số + nhãn. */
+    private HBox taoChiSo(String icon, Label lblSo, String nhan) {
+        lblSo.getStyleClass().add("pl-stat-so");
+        Label lblNhan = new Label(nhan);
+        lblNhan.getStyleClass().add("pl-stat-nhan");
+        VBox chu = new VBox(0, lblSo, lblNhan);
+        HBox o = new HBox(10, taoIcon(icon, 22), chu);
+        o.setAlignment(Pos.CENTER_LEFT);
+        o.getStyleClass().add("pl-stat");
+        return o;
+    }
+
+    /** Banner cam: lời chào + 3 chỉ số + mỏ neo lắc lư. */
+    private HBox taoBannerChaoMung() {
+        String ten = (currentUsername == null || currentUsername.isEmpty()) ? "thuyền trưởng" : currentUsername;
+        Label lblChao = new Label("Chào thuyền trưởng " + ten + "!");
+        lblChao.getStyleClass().add("pl-hero-title");
+        Label lblMoTa = new Label("Chọn một đối thủ đang trực tuyến rồi bấm \"Thách đấu\" để ra khơi.");
+        lblMoTa.getStyleClass().add("pl-hero-sub");
+        VBox chu = new VBox(4, lblChao, lblMoTa);
+
+        lblBannerDiem.setText(currentScore);
+        HBox chiSo = new HBox(12,
+                taoChiSo("pi-star", lblBannerDiem, "ĐIỂM CỦA BẠN"),
+                taoChiSo("pi-users", lblBannerOnline, "ĐANG TRỰC TUYẾN"),
+                taoChiSo("pi-trophy", lblBannerHang, "HẠNG HIỆN TẠI"));
+
+        VBox trai = new VBox(14, chu, chiSo);
+
+        // Mỏ neo lớn mờ bên phải, nhấp nhô lên xuống như trên sóng biển
+        Region neo = taoIcon("pi-anchor", 96);
+        neo.getStyleClass().add("pl-hero-anchor");
+        TranslateTransition nhapNho = new TranslateTransition(Duration.seconds(1.8), neo);
+        nhapNho.setFromY(-7);
+        nhapNho.setToY(7);
+        nhapNho.setAutoReverse(true);
+        nhapNho.setCycleCount(Animation.INDEFINITE);
+        nhapNho.play();
+
+        Region khoangTrong = new Region();
+        HBox.setHgrow(khoangTrong, Priority.ALWAYS);
+
+        HBox banner = new HBox(trai, khoangTrong, neo);
+        banner.setAlignment(Pos.CENTER_LEFT);
+        banner.getStyleClass().add("pl-hero");
+        return banner;
+    }
+
+    // =================================================================== TAB 1: DANH SÁCH NGƯỜI CHƠI
 
     private Tab taoTabNguoiChoi() {
         txtSearch = new TextField();
         txtSearch.setPromptText("Tìm theo tên...");
-        txtSearch.getStyleClass().add("lobby-search");
-        
-        Button btnSearch = new Button("Làm mới");
-        btnSearch.getStyleClass().add("lobby-btn-primary");
+        txtSearch.getStyleClass().add("pl-search");
+        txtSearch.setPrefWidth(240);
+        // Icon kính lúp nằm chồng bên trái ô tìm kiếm
+        Region kinhLup = taoIcon("pi-search", 15);
+        kinhLup.setMouseTransparent(true);
+        StackPane oTimKiem = new StackPane(txtSearch, kinhLup);
+        StackPane.setAlignment(kinhLup, Pos.CENTER_LEFT);
+        StackPane.setMargin(kinhLup, new Insets(0, 0, 0, 13));
+
+        Button btnSearch = taoNut("Làm mới", "pi-refresh", "pl-btn-ghost");
         btnSearch.setOnAction(e -> {
             SocketClientManager.guiTinNhan(new MessageDTO("LIST_PLAYERS", null));
             txtSearch.clear();
         });
 
-        HBox toolbar = taoThanhCongCu(txtSearch, btnSearch);
+        HBox toolbar = taoThanhCongCu("Danh sách người chơi",
+                "Người đang trực tuyến sẽ có nút \"Thách đấu\"", oTimKiem, btnSearch);
 
         tblPlayers = new TableView<>();
         tuyChinhBang(tblPlayers);
-        TableColumn<String[], String> colTen = new TableColumn<>("Tên người chơi");
+        tblPlayers.setPlaceholder(taoTrangTrong("pi-users", "Chưa có người chơi nào", "Bấm \"Làm mới\" để tải lại danh sách"));
+
+        TableColumn<String[], String> colTen = new TableColumn<>("NGƯỜI CHƠI");
         colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
         colTen.setPrefWidth(250);
-
-        TableColumn<String[], String> colTrangThai = new TableColumn<>("Trạng thái");
-        colTrangThai.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
-        colTrangThai.setPrefWidth(150);
-        colTrangThai.setCellFactory(col -> new javafx.scene.control.TableCell<String[], String>() {
-            private final javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(6);
-
+        colTen.setCellFactory(col -> new TableCell<String[], String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                    setStyle("");
-                } else {
-                    setText(item.toLowerCase()); 
-                    setGraphicTextGap(8); 
-
-                    if (item.equalsIgnoreCase("ONLINE")) {
-                        dot.setFill(javafx.scene.paint.Color.web("#00897B")); 
-                        setStyle("-fx-text-fill: #00897B; -fx-font-weight: bold;");
-                    } else if (item.equalsIgnoreCase("OFFLINE")) {
-                        dot.setFill(javafx.scene.paint.Color.web("#B0BEC5"));
-                        setStyle("-fx-text-fill: #90A4AE; -fx-font-weight: normal;");
-                    } else {
-                        dot.setFill(javafx.scene.paint.Color.web("#F9A825"));
-                        setStyle("-fx-text-fill: #F57C00; -fx-font-weight: bold;");
-                    }
-                    setGraphic(dot);
-                }
+                setText(null);
+                setGraphic(empty || item == null ? null : taoONguoiChoi(item));
             }
         });
-        
-        TableColumn<String[], String> colDiem = new TableColumn<>("Điểm");
-        colDiem.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
-        colDiem.setPrefWidth(100);
 
-        TableColumn<String[], Void> colThachDau = new TableColumn<>("Thách đấu");
-        colThachDau.setPrefWidth(120);
+        // Trạng thái: viên thuốc có chấm màu (xanh = trực tuyến, xám = ngoại tuyến, vàng = đang thi đấu)
+        TableColumn<String[], String> colTrangThai = new TableColumn<>("TRẠNG THÁI");
+        colTrangThai.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
+        colTrangThai.setPrefWidth(150);
+        colTrangThai.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+                String lop;
+                String chu;
+                if (item.equalsIgnoreCase("ONLINE")) {
+                    lop = "pl-pill-online";
+                    chu = "Trực tuyến";
+                } else if (item.equalsIgnoreCase("OFFLINE")) {
+                    lop = "pl-pill-offline";
+                    chu = "Ngoại tuyến";
+                } else {
+                    lop = "pl-pill-busy";
+                    chu = "Đang thi đấu";
+                }
+                Circle cham = new Circle(4);
+                cham.getStyleClass().add("pl-dot");
+                Label pill = new Label(chu, cham);
+                pill.getStyleClass().addAll("pl-pill", lop);
+                setGraphic(pill);
+            }
+        });
+
+        TableColumn<String[], String> colDiem = new TableColumn<>("ĐIỂM");
+        colDiem.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
+        colDiem.setPrefWidth(110);
+        colDiem.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+                Label diem = new Label(item, taoIcon("pi-trophy", 14));
+                diem.getStyleClass().add("pl-diem");
+                setGraphic(diem);
+            }
+        });
+
+        TableColumn<String[], Void> colThachDau = new TableColumn<>("THÁCH ĐẤU");
+        colThachDau.setPrefWidth(140);
         colThachDau.setCellFactory(col -> new javafx.scene.control.TableCell<String[], Void>() {
-            private final Button btn = new Button("Thách đấu");
+            private final Button btn = taoNut("Thách đấu", "pi-bolt", "pl-btn-sm", "pl-btn-fight");
             {
-                btn.getStyleClass().add("lobby-btn-challenge");
                 btn.setOnAction(e -> {
                     if (isWaiting) {
                         Alert canhkBao = new Alert(AlertType.WARNING, "Bạn đang đợi một người khác trả lời. Hãy Hủy yêu cầu cũ trước!");
@@ -279,12 +465,12 @@ public class LobbyGUI extends Application {
                         canhkBao.show();
                         return;
                     }
-                    
+
                     String[] row = getTableView().getItems().get(getIndex());
                     String tenDoiThu = row[0];
                     String trangThai = row[1];
                     if (tenDoiThu.equalsIgnoreCase(currentUsername) || !trangThai.equals("ONLINE")) return;
-                    
+
                     hienThiHopThoaiCho(tenDoiThu);
                 });
             }
@@ -299,68 +485,105 @@ public class LobbyGUI extends Application {
         });
 
         FilteredList<String[]> filteredData = new FilteredList<>(dsNguoiChoi, p -> true);
-        
+
         txtSearch.textProperty().addListener((observable, oldValue, newValue) -> {
             filteredData.setPredicate(player -> {
                 if (newValue == null || newValue.isEmpty()) {
                     return true;
                 }
                 String lowerCaseFilter = newValue.toLowerCase();
-                return player[0].toLowerCase().contains(lowerCaseFilter); 
+                return player[0].toLowerCase().contains(lowerCaseFilter);
             });
         });
 
         tblPlayers.getColumns().addAll(colTen, colTrangThai, colDiem, colThachDau);
         tblPlayers.setItems(filteredData);
 
-        return new Tab("Danh sách người chơi", taoNoiDungTab(toolbar, tblPlayers));
+        return taoTab("Danh sách người chơi", "pi-users", taoNoiDungTab(toolbar, tblPlayers));
     }
 
+    // =================================================================== TAB 2: LỊCH SỬ ĐẤU
+
     private Tab taoTabLichSu() {
-        Button btnRefresh = new Button("Làm mới");
-        btnRefresh.getStyleClass().add("lobby-btn-primary");
+        Button btnRefresh = taoNut("Làm mới", "pi-refresh", "pl-btn-ghost");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan(new MessageDTO("MATCH_HISTORY", null)));
 
         tblHistory = new TableView<>();
         tuyChinhBang(tblHistory);
-        TableColumn<String[], String> colId = new TableColumn<>("Mã trận");
+        tblHistory.setPlaceholder(taoTrangTrong("pi-history", "Bạn chưa đánh trận nào", "Hãy thách đấu một người chơi để bắt đầu!"));
+
+        TableColumn<String[], String> colId = new TableColumn<>("MÃ TRẬN");
         colId.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
-        colId.setMaxWidth(80);
-
-        TableColumn<String[], String> colDoiThu = new TableColumn<>("Đối thủ");
-        colDoiThu.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
-
-        TableColumn<String[], String> colKetQua = new TableColumn<>("Kết quả");
-        colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
-        colKetQua.setCellFactory(col -> new TableCell<String[], String>() {
-            private final Label pill = new Label();
-
+        colId.setMinWidth(90);
+        colId.setMaxWidth(110);
+        colId.setCellFactory(col -> new TableCell<String[], String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
+                getStyleClass().remove("pl-id");
                 if (empty || item == null) {
                     setText(null);
+                } else {
+                    setText("#" + item);
+                    getStyleClass().add("pl-id");
+                }
+            }
+        });
+
+        TableColumn<String[], String> colDoiThu = new TableColumn<>("ĐỐI THỦ");
+        colDoiThu.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
+        colDoiThu.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                setGraphic(empty || item == null ? null : taoONguoiChoi(item));
+            }
+        });
+
+        // Kết quả: thắng = huy hiệu xanh có cúp, thua = huy hiệu đỏ có cờ
+        TableColumn<String[], String> colKetQua = new TableColumn<>("KẾT QUẢ");
+        colKetQua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
+        colKetQua.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
                     setGraphic(null);
                     return;
                 }
-                pill.setText(item);
-                pill.getStyleClass().setAll("label", "lobby-pill",
-                        item.equalsIgnoreCase("WIN") || item.equalsIgnoreCase("Thắng") ? "lobby-result-win" : "lobby-result-lose");
-                setText(null);
+                boolean thang = item.equalsIgnoreCase("WIN") || item.equalsIgnoreCase("Thắng");
+                String chu = thang ? "Chiến thắng" : (item.equalsIgnoreCase("LOSE") || item.equalsIgnoreCase("LOSS") ? "Thất bại" : item);
+                Label pill = new Label(chu, taoIcon(thang ? "pi-trophy" : "pi-flag", 12));
+                pill.getStyleClass().addAll("pl-pill", thang ? "pl-pill-win" : "pl-pill-lose");
                 setGraphic(pill);
             }
         });
 
-        TableColumn<String[], String> colThoiGian = new TableColumn<>("Thời gian");
+        TableColumn<String[], String> colThoiGian = new TableColumn<>("THỜI GIAN");
         colThoiGian.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
+        colThoiGian.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                getStyleClass().remove("pl-thoigian");
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    // Bỏ phần ".0" mili-giây ở cuối cho gọn
+                    setText(item.length() > 16 ? item.substring(0, 16) : item);
+                    getStyleClass().add("pl-thoigian");
+                }
+            }
+        });
 
         // CỘT XEM LẠI TRẬN ĐẤU (REPLAY)
-        TableColumn<String[], Void> colReplay = new TableColumn<>("Xem lại");
-        colReplay.setPrefWidth(120);
+        TableColumn<String[], Void> colReplay = new TableColumn<>("XEM LẠI");
+        colReplay.setPrefWidth(130);
         colReplay.setCellFactory(col -> new TableCell<String[], Void>() {
-            private final Button btnReplay = new Button("🎬 Xem lại");
+            private final Button btnReplay = taoNut("Xem lại", "pi-play", "pl-btn-sm", "pl-btn-replay");
             {
-                btnReplay.getStyleClass().add("lobby-btn-challenge");
                 btnReplay.setOnAction(e -> {
                     String[] row = getTableView().getItems().get(getIndex());
                     String matchIdStr = row[0];
@@ -390,55 +613,95 @@ public class LobbyGUI extends Application {
         tblHistory.getColumns().addAll(colId, colDoiThu, colKetQua, colThoiGian, colReplay);
         tblHistory.setItems(dsLichSu);
 
-        return new Tab("Lịch sử đấu", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblHistory));
+        HBox toolbar = taoThanhCongCu("Lịch sử đấu", "Các trận bạn đã đánh — bấm \"Xem lại\" để phát lại từng lượt bắn", btnRefresh);
+        return taoTab("Lịch sử đấu", "pi-history", taoNoiDungTab(toolbar, tblHistory));
     }
 
+    // =================================================================== TAB 3: BẢNG XẾP HẠNG
+
     private Tab taoTabXepHang() {
-        Button btnRefresh = new Button("Làm mới");
-        btnRefresh.getStyleClass().add("lobby-btn-primary");
+        Button btnRefresh = taoNut("Làm mới", "pi-refresh", "pl-btn-ghost");
         btnRefresh.setOnAction(e -> SocketClientManager.guiTinNhan(new MessageDTO("LEADERBOARD", null)));
 
         tblRank = new TableView<>();
         tuyChinhBang(tblRank);
-        TableColumn<String[], String> colHang = new TableColumn<>("Hạng");
-        colHang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
-        colHang.setCellFactory(col -> new TableCell<String[], String>() {
-            private final Label pill = new Label();
+        tblRank.setPlaceholder(taoTrangTrong("pi-chart", "Chưa có bảng xếp hạng", "Bấm \"Làm mới\" để tải lại"));
 
+        // Tô nền cam nhạt cho dòng của chính mình
+        tblRank.setRowFactory(tv -> new TableRow<String[]>() {
             @Override
-            protected void updateItem(String item, boolean empty) {
+            protected void updateItem(String[] item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else if (item.equals("1") || item.equals("2") || item.equals("3")) {
-                    pill.setText("#" + item);
-                    pill.getStyleClass().setAll("label", "lobby-pill", "lobby-rank-" + item);
-                    setText(null);
-                    setGraphic(pill);
-                } else {
-                    setGraphic(null);
-                    setText(item);
+                getStyleClass().remove("pl-row-me");
+                if (!empty && item != null && item[1].equalsIgnoreCase(currentUsername)) {
+                    getStyleClass().add("pl-row-me");
                 }
             }
         });
 
-        TableColumn<String[], String> colTen = new TableColumn<>("Tên người chơi");
-        colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
+        // Hạng: top 3 là huy chương vàng / bạc / đồng
+        TableColumn<String[], String> colHang = new TableColumn<>("HẠNG");
+        colHang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[0]));
+        colHang.setMinWidth(80);
+        colHang.setMaxWidth(100);
+        colHang.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
+                    setGraphic(null);
+                } else if (item.equals("1") || item.equals("2") || item.equals("3")) {
+                    Label huyChuong = new Label(item);
+                    huyChuong.getStyleClass().addAll("pl-medal", "pl-medal-" + item);
+                    setGraphic(huyChuong);
+                } else {
+                    Label hang = new Label("#" + item);
+                    hang.getStyleClass().add("pl-hang");
+                    setGraphic(hang);
+                }
+            }
+        });
 
-        TableColumn<String[], String> colThang = new TableColumn<>("Thắng");
+        TableColumn<String[], String> colTen = new TableColumn<>("NGƯỜI CHƠI");
+        colTen.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[1]));
+        colTen.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                setGraphic(empty || item == null ? null : taoONguoiChoi(item));
+            }
+        });
+
+        TableColumn<String[], String> colThang = new TableColumn<>("THẮNG");
         colThang.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[2]));
 
-        TableColumn<String[], String> colThua = new TableColumn<>("Thua");
+        TableColumn<String[], String> colThua = new TableColumn<>("THUA");
         colThua.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[3]));
 
-        TableColumn<String[], String> colDiem = new TableColumn<>("Điểm");
+        TableColumn<String[], String> colDiem = new TableColumn<>("ĐIỂM");
         colDiem.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue()[4]));
+        colDiem.setCellFactory(col -> new TableCell<String[], String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    return;
+                }
+                Label diem = new Label(item, taoIcon("pi-trophy", 14));
+                diem.getStyleClass().add("pl-diem");
+                setGraphic(diem);
+            }
+        });
 
         tblRank.getColumns().addAll(colHang, colTen, colThang, colThua, colDiem);
         tblRank.setItems(dsXepHang);
 
-        return new Tab("Bảng xếp hạng", taoNoiDungTab(taoThanhCongCu(btnRefresh), tblRank));
+        HBox toolbar = taoThanhCongCu("Bảng xếp hạng", "Top thuyền trưởng mạnh nhất server — dòng tô cam là bạn", btnRefresh);
+        return taoTab("Bảng xếp hạng", "pi-chart", taoNoiDungTab(toolbar, tblRank));
     }
 
     public void capNhatDanhSachNguoiChoi(String jsonString) {
@@ -456,6 +719,13 @@ public class LobbyGUI extends Application {
                 
                 dsNguoiChoi.add(new String[]{name, status, score});
             }
+            // Đếm số người không OFFLINE để hiện trên banner
+            int online = 0;
+            for (String[] ng : dsNguoiChoi) {
+                if (!"OFFLINE".equalsIgnoreCase(ng[1])) online++;
+            }
+            final int soOnline = online;
+            Platform.runLater(() -> lblBannerOnline.setText(String.valueOf(soOnline)));
         } catch (Exception e) {
             System.err.println("Lỗi parse JSON Danh Sách Người Chơi: " + e.getMessage());
         }
@@ -504,7 +774,12 @@ public class LobbyGUI extends Application {
                 
                 if (name.equalsIgnoreCase(currentUsername)) {
                     currentScore = score;
-                    Platform.runLater(() -> lblScore.setText("★ " + currentScore));
+                    final int hangCuaMinh = rank;
+                    Platform.runLater(() -> {
+                        lblScore.setText(currentScore + " điểm");
+                        lblBannerDiem.setText(currentScore);
+                        lblBannerHang.setText("#" + hangCuaMinh);
+                    });
                 }
                 rank++;
             }
