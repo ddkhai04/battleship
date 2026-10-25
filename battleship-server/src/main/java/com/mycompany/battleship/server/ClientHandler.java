@@ -137,6 +137,9 @@ public class ClientHandler implements Runnable {
                     case "GET_HEATMAP":
                         handleGetHeatmap(payload);
                         break;
+                    case "GET_PROFILE":
+                        handleGetProfile(payload);
+                        break;
                     case "SURRENDER":
                     case "LEAVE_MATCH":
                         handleSurrender();
@@ -179,7 +182,8 @@ public class ClientHandler implements Runnable {
             uMap.put("nickname", u.getNickname());
             uMap.put("role", u.getRole().name());
             String realStatus = BattleshipServer.onlineUsers.containsKey(u.getUsername()) ? "ONLINE" : "OFFLINE";
-            if (BattleshipServer.gameManager.isInGame(u.getUsername())) {
+            // Chỉ người đang online mới có thể "đang thi đấu"; đã offline thì luôn hiện OFFLINE
+            if ("ONLINE".equals(realStatus) && BattleshipServer.gameManager.isInGame(u.getUsername())) {
                 realStatus = "IN_GAME";
             }
             uMap.put("status", realStatus);
@@ -250,6 +254,28 @@ public class ClientHandler implements Runnable {
             }
         }
     
+    // Admin xem hồ sơ 1 người chơi: thống kê bắn + 2 heatmap cá nhân (đặt tàu, nhắm bắn)
+    private void handleGetProfile(Map<String, Object> payload) {
+        if (this.currentUser == null) return;
+        String role = (this.currentUser.getRole() != null) ? this.currentUser.getRole().toString() : "USER";
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            sendMessage(new MessageDTO("ERROR", "Bạn không có quyền xem hồ sơ người chơi!"));
+            return;
+        }
+        if (payload == null || !payload.containsKey("userId")) return;
+        int targetUserId = ((Double) payload.get("userId")).intValue();
+
+        com.mycompany.battleship.common.model.ProfileDTO dto = new com.mycompany.battleship.common.model.ProfileDTO();
+        dto.userId = targetUserId;
+        dto.thongKe = new com.mycompany.battleship.server.dao.UserCombatStatsDAO().getStats(targetUserId);
+        dto.thongKe.setUpdatedAt(null); // bỏ ngày giờ để khỏi lệch định dạng Date giữa server và client
+        com.mycompany.battleship.server.dao.UserHeatmapDAO heatDAO = new com.mycompany.battleship.server.dao.UserHeatmapDAO();
+        dto.datTau = heatDAO.layDatTau(targetUserId);
+        dto.oBan = heatDAO.layOBan(targetUserId);
+
+        sendMessage(new MessageDTO("PROFILE_DATA", dto));
+    }
+
     private void handleGetHeatmap(Map<String, Object> payload) {
         if (this.currentUser == null) return;
 

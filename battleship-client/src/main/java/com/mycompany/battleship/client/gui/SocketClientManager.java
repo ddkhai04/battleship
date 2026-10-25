@@ -33,6 +33,7 @@ public class SocketClientManager {
     public static RegisterGUI registerScreen;
     public static LobbyGUI lobbyScreen;
     public static AdminGUI adminScreen; 
+    public static ProfileGUI profileScreen;
 
     public static GameRoomGUI gameRoomScreen;
     public static Stage gameStage;
@@ -136,6 +137,14 @@ private static void xuLyTinNhan(String duLieu) {
                 Platform.runLater(() -> {
                     if (registerScreen != null) {
                         registerScreen.dangKyThatBai(payload != null ? payload.toString() : "Lỗi đăng ký.");
+                    }
+                });
+                break;
+
+            case "PROFILE_DATA":
+                Platform.runLater(() -> {
+                    if (profileScreen != null && payload != null) {
+                        profileScreen.hienHoSo(GSON.fromJson(payloadJson, com.mycompany.battleship.common.model.ProfileDTO.class));
                     }
                 });
                 break;

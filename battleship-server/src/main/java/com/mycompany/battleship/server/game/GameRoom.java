@@ -47,6 +47,8 @@ public class GameRoom {
     private final GameEventListener listener;
     private final Random rng = new Random();
     private final Set<String> rematchRequests = new HashSet<>();
+    // Những người đã rời phòng (về sảnh / mất kết nối) sau khi trận kết thúc; đủ 2 người thì đóng phòng
+    private final Set<String> daRoiPhong = new HashSet<>();
     private final ChatLog chat;
     private GameResult lastResult;
     
@@ -198,6 +200,11 @@ public class GameRoom {
         } else if (phase == GamePhase.FINISHED) {
             // Trận đã kết thúc, 1 người về sảnh -> Không gọi close() để người còn lại vẫn bấm Tái đấu được
             rematchRequests.remove(playerId);
+            // Nhưng khi CẢ 2 người đều đã rời thì đóng phòng, nếu không server vẫn coi họ "đang trong trận"
+            daRoiPhong.add(playerId);
+            if (daRoiPhong.size() == 2) {
+                close();
+            }
         } else {
             notifyListener(l -> l.onPlayerLeft(this, playerId));
             close();
@@ -382,6 +389,7 @@ public class GameRoom {
 
     private void beginCountdown() {
         rematchRequests.clear();
+        daRoiPhong.clear();
         playerA.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
         playerB.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
         currentTurnId = null;
