@@ -1,7 +1,6 @@
 package com.mycompany.battleship.client.gui;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mycompany.battleship.common.model.GameView;
@@ -32,7 +31,7 @@ public class SocketClientManager {
     public static LoginGUI loginScreen;
     public static RegisterGUI registerScreen;
     public static LobbyGUI lobbyScreen;
-    public static AdminGUI adminScreen; 
+    public static AdminGUI adminScreen;
 
     public static GameRoomGUI gameRoomScreen;
     public static Stage gameStage;
@@ -55,7 +54,6 @@ public class SocketClientManager {
         }
     }
 
-    // Gửi tin nhắn bằng cấu trúc JSON chuẩn
     public static void guiTinNhan(MessageDTO msg) {
         try {
             if (out == null) {
@@ -66,7 +64,7 @@ public class SocketClientManager {
             out.write(json);
             out.newLine();
             out.flush();
-            
+
             String logContent = json;
             if (json.contains("password")) {
                 logContent = json.replaceFirst("\"password\":\"[^\"]*\"", "\"password\":\"***HIDDEN***\"");
@@ -77,7 +75,6 @@ public class SocketClientManager {
         }
     }
 
-    
     private static void langNgheServer() {
         try {
             while (true) {
@@ -94,7 +91,7 @@ public class SocketClientManager {
         }
     }
 
-private static void xuLyTinNhan(String duLieu) {
+    private static void xuLyTinNhan(String duLieu) {
         MessageDTO msg;
         try {
             msg = GSON.fromJson(duLieu, MessageDTO.class);
@@ -164,8 +161,6 @@ private static void xuLyTinNhan(String duLieu) {
                 });
                 break;
 
-                
-                
             case "RANK_LIST":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
@@ -173,6 +168,7 @@ private static void xuLyTinNhan(String duLieu) {
                     }
                 });
                 break;
+
             case "SPECTATE_UPDATE":
                 try {
                     com.google.gson.Gson gson = new com.google.gson.Gson();
@@ -184,6 +180,7 @@ private static void xuLyTinNhan(String duLieu) {
                     System.err.println("Lỗi cập nhật Spectate: " + e.getMessage());
                 }
                 break;
+
             case "INVITE_FROM":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
@@ -219,7 +216,7 @@ private static void xuLyTinNhan(String duLieu) {
             case "MATCH_START":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
-                      lobbyScreen.batDauTranDau();
+                        lobbyScreen.batDauTranDau();
                     }
                     if (gameStage != null) {
                         gameStage.close();
@@ -233,10 +230,14 @@ private static void xuLyTinNhan(String duLieu) {
                     gameStage = new Stage();
 
                     String tenDoiThu = "Đối thủ";
+                    int setupSeconds = 45;
                     if (payload != null) {
                         JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
                         if (obj.has("opponent")) {
                             tenDoiThu = obj.get("opponent").getAsString();
+                        }
+                        if (obj.has("setupSeconds")) {
+                            setupSeconds = obj.get("setupSeconds").getAsInt();
                         }
                     }
 
@@ -247,6 +248,13 @@ private static void xuLyTinNhan(String duLieu) {
 
                     gameRoomScreen.setPlayerNames(LobbyGUI.currentUsername, tenDoiThu);
                     gameRoomScreen.setPlayerScores(diemCuaMinh, 0);
+
+                    gameRoomScreen.setOnShipsPlaced((shipsData, isReady) -> {
+                        Map<String, Object> placePayload = new HashMap<>();
+                        placePayload.put("ships", shipsData);
+                        placePayload.put("ready", isReady);
+                        guiTinNhan(new MessageDTO("PLACE_SHIPS", placePayload));
+                    });
 
                     gameRoomScreen.setOnAttackCellClicked((row, col) -> {
                         String weapon = gameRoomScreen.getSelectedWeapon();
@@ -269,8 +277,21 @@ private static void xuLyTinNhan(String duLieu) {
 
                     try {
                         gameRoomScreen.start(gameStage);
+                        gameRoomScreen.startSetupPhase(setupSeconds);
                     } catch (Exception ex) {
                         ex.printStackTrace();
+                    }
+                });
+                break;
+
+            case "SETUP_STATUS":
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null && payload != null) {
+                        JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                        String readyPlayer = obj.has("player") ? obj.get("player").getAsString() : "";
+                        if (!readyPlayer.equalsIgnoreCase(LobbyGUI.currentUsername)) {
+                            gameRoomScreen.onOpponentReady();
+                        }
                     }
                 });
                 break;
@@ -328,7 +349,7 @@ private static void xuLyTinNhan(String duLieu) {
                             outcome = obj.has("outcome") ? obj.get("outcome").getAsString() : "LOSE";
                             reason = obj.has("reason") ? obj.get("reason").getAsString() : "";
                         }
-                        
+
                         boolean isWinner = "WIN".equalsIgnoreCase(outcome);
 
                         gameRoomScreen.showResultPopup(isWinner, reason, () -> {
@@ -348,49 +369,45 @@ private static void xuLyTinNhan(String duLieu) {
                     }
                 });
                 break;
+
             case "REPLAY_DATA":
-                System.out.println(">>> [CLIENT] Da nhan duoc goi tin REPLAY_DATA tu Server!");
                 try {
                     com.google.gson.Gson gson = new com.google.gson.Gson();
-                    // Chú ý: Dùng đúng tên biến MessageDTO trong vòng lặp của bạn (ví dụ: msg, messageDTO, dto)
-                    com.google.gson.JsonObject replayData = gson.toJsonTree(msg.getPayload()).getAsJsonObject(); 
-
+                    com.google.gson.JsonObject replayData = gson.toJsonTree(msg.getPayload()).getAsJsonObject();
                     javafx.application.Platform.runLater(() -> {
                         try {
-                            System.out.println(">>> [CLIENT] Dang khoi tao ReplayGUI...");
                             ReplayGUI replayGUI = new ReplayGUI(replayData);
                             replayGUI.show();
-                            System.out.println(">>> [CLIENT] Da hien thi ReplayGUI thanh cong!");
                         } catch (Throwable t) {
-                            System.err.println(">>> [CLIENT] LOI KHI KHOI TAO ReplayGUI: " + t.getMessage());
                             t.printStackTrace();
                         }
                     });
                 } catch (Exception e) {
-                    System.err.println(">>> [CLIENT] Loi parse goi tin REPLAY_DATA: " + e.getMessage());
                     e.printStackTrace();
                 }
                 break;
+
             case "OPPONENT_QUIT":
             case "PLAYER_LEFT":
-              Platform.runLater(() -> {
-                  if (gameRoomScreen != null) {
-                      gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
-                          if (gameStage != null) gameStage.close();
-                          quayVeSanh();
-                      }, () -> {
-                          guiTinNhan(new MessageDTO("REMATCH", null));
-                          if (waitingAlert != null) waitingAlert.close();
-                          waitingAlert = new Alert(Alert.AlertType.INFORMATION);
-                          waitingAlert.setTitle("Đang chờ");
-                          waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
-                          waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
-                          DialogStyle.apply(waitingAlert);
-                          waitingAlert.show();
-                      });
-                  }
-              });
-              break;
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null) {
+                        gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
+                            if (gameStage != null) gameStage.close();
+                            quayVeSanh();
+                        }, () -> {
+                            guiTinNhan(new MessageDTO("REMATCH", null));
+                            if (waitingAlert != null) waitingAlert.close();
+                            waitingAlert = new Alert(Alert.AlertType.INFORMATION);
+                            waitingAlert.setTitle("Đang chờ");
+                            waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
+                            waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
+                            DialogStyle.apply(waitingAlert);
+                            waitingAlert.show();
+                        });
+                    }
+                });
+                break;
+
             case "REMATCH_REQUESTED":
                 Platform.runLater(() -> {
                     String challenger = payload != null ? payload.toString() : "Đối thủ";
@@ -398,7 +415,7 @@ private static void xuLyTinNhan(String duLieu) {
                     alert.setTitle("Tái đấu");
                     alert.setHeaderText(challenger + " muốn tái đấu ván nữa!");
                     alert.setContentText("Bạn có đồng ý không?");
-                    
+
                     javafx.scene.control.ButtonType btnDongY = new javafx.scene.control.ButtonType("Đồng ý", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
                     javafx.scene.control.ButtonType btnTuChoi = new javafx.scene.control.ButtonType("Từ chối", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
                     alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
@@ -415,43 +432,43 @@ private static void xuLyTinNhan(String duLieu) {
                     });
                 });
                 break;
-            
-            case "REMATCH_DECLINED":
-              Platform.runLater(() -> {
-                  if (waitingAlert != null) {
-                      waitingAlert.close();
-                      waitingAlert = null;
-                  }
-                  String msgDecline = (payload instanceof String && !((String) payload).isEmpty() && !((String) payload).equals(LobbyGUI.currentUsername))
-                          ? (String) payload
-                          : "Đối thủ đã từ chối tái đấu!";
-                  Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                  alert.setTitle("Thông báo");
-                  alert.setHeaderText(msgDecline);
-                  DialogStyle.apply(alert);
-                  alert.showAndWait();
 
-                  if (gameStage != null) {
-                      gameStage.close();
-                      gameStage = null;
-                  }
-                  quayVeSanh();
-              });
-              break; 
+            case "REMATCH_DECLINED":
+                Platform.runLater(() -> {
+                    if (waitingAlert != null) {
+                        waitingAlert.close();
+                        waitingAlert = null;
+                    }
+                    String msgDecline = (payload instanceof String && !((String) payload).isEmpty() && !((String) payload).equals(LobbyGUI.currentUsername))
+                            ? (String) payload
+                            : "Đối thủ đã từ chối tái đấu!";
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Thông báo");
+                    alert.setHeaderText(msgDecline);
+                    DialogStyle.apply(alert);
+                    alert.showAndWait();
+
+                    if (gameStage != null) {
+                        gameStage.close();
+                        gameStage = null;
+                    }
+                    quayVeSanh();
+                });
+                break;
+
             case "HEATMAP_DATA":
                 Platform.runLater(() -> {
                     if (payload != null) {
                         JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
-                        // Nếu đang ở màn hình AdminGUI thì cập nhật vào Tab
                         if (adminScreen != null) {
                             adminScreen.capNhatHeatmap(obj);
                         } else {
-                            // Fallback nếu dùng Dialog rời
                             HeatmapDialog.hienThi(obj);
                         }
                     }
                 });
-                break;  
+                break;
+
             case "GAME_ERROR":
             case "ERROR":
                 Platform.runLater(() -> {
@@ -478,15 +495,15 @@ private static void xuLyTinNhan(String duLieu) {
     }
 
     private static void quayVeSanh() {
-      try {
-          gameRoomScreen = null;
-          if (lobbyScreen != null) {
-              lobbyScreen.batDauTranDau(); // Đảm bảo đóng stage cũ nếu còn sót
-          }
-          new LobbyGUI().start(new Stage());
-      } catch (Exception ex) {
-          ex.printStackTrace();
-      }
+        try {
+            gameRoomScreen = null;
+            if (lobbyScreen != null) {
+                lobbyScreen.batDauTranDau();
+            }
+            new LobbyGUI().start(new Stage());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     public static void dongKetNoi() {

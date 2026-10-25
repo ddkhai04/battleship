@@ -111,4 +111,57 @@ public final class Board {
             Arrays.fill(mystery[r], false);
         }
     }
+    /**
+     * Dựng và kiểm tra tính hợp lệ của bàn cờ từ danh sách tàu do Client gửi lên.
+     * Trả về null nếu số lượng tàu, kích thước, hướng thẳng hoặc khoảng cách 1 ô không hợp lệ.
+     */
+    public static Board fromShips(List<List<Point>> shipCellsList, int[] expectedLengths) {
+        if (shipCellsList == null || expectedLengths == null || shipCellsList.size() != expectedLengths.length) {
+            return null;
+        }
+
+        int[] actualLengths = new int[shipCellsList.size()];
+        for (int i = 0; i < shipCellsList.size(); i++) {
+            List<Point> cells = shipCellsList.get(i);
+            if (cells == null || cells.isEmpty()) return null;
+            actualLengths[i] = cells.size();
+        }
+
+        int[] expSorted = expectedLengths.clone();
+        int[] actSorted = actualLengths.clone();
+        Arrays.sort(expSorted);
+        Arrays.sort(actSorted);
+        if (!Arrays.equals(expSorted, actSorted)) {
+            return null;
+        }
+
+        Board board = new Board();
+        for (List<Point> rawCells : shipCellsList) {
+            List<Point> sorted = new ArrayList<>(rawCells);
+            sorted.sort((a, b) -> (a.getRow() == b.getRow())
+                    ? Integer.compare(a.getCol(), b.getCol())
+                    : Integer.compare(a.getRow(), b.getRow()));
+
+            // Kiểm tra các ô phải nằm trên 1 đường thẳng ngang hoặc dọc liên tiếp
+            boolean sameRow = true;
+            boolean sameCol = true;
+            for (int i = 1; i < sorted.size(); i++) {
+                if (sorted.get(i).getRow() != sorted.get(0).getRow()) sameRow = false;
+                if (sorted.get(i).getCol() != sorted.get(0).getCol()) sameCol = false;
+            }
+            if (!sameRow && !sameCol) return null;
+
+            for (int i = 1; i < sorted.size(); i++) {
+                int dr = sorted.get(i).getRow() - sorted.get(i - 1).getRow();
+                int dc = sorted.get(i).getCol() - sorted.get(i - 1).getCol();
+                if (dr + dc != 1) return null;
+            }
+
+            if (!board.canPlace(sorted)) {
+                return null;
+            }
+            board.addShip(new Ship(board.getShips().size(), sorted));
+        }
+        return board;
+    }
 }

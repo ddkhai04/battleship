@@ -642,3 +642,61 @@
 .lobby-dialog .button-bar .button:default:hover {
     -fx-background-color: derive(#00897B, 15%);
 }
+/* ==========================================================================
+   GIAO DIEN DAT TAU (SETUP PHASE - 45s)
+   ========================================================================== */
+
+.setup-ship-item {
+    -fx-background-color: #F7FBFA;
+    -fx-background-radius: 8;
+    -fx-border-color: -border-light;
+    -fx-border-radius: 8;
+    -fx-border-width: 1.5;
+    -fx-padding: 7 12 7 12;
+    -fx-cursor: hand;
+}
+
+.setup-ship-item:hover {
+    -fx-border-color: -accent-active;
+}
+
+.setup-ship-item-selected {
+    -fx-background-color: -weapon-selected-bg;
+    -fx-border-color: -weapon-selected-border;
+    -fx-border-width: 2;
+}
+
+.setup-ship-item-placed {
+    -fx-background-color: #FAFAFA;
+    -fx-opacity: 0.72;
+}
+
+.setup-status-badge {
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 8;
+}
+
+.setup-status-placed {
+    -fx-background-color: -weapon-selected-bg;
+    -fx-text-fill: -accent-active;
+}
+
+.setup-status-pending {
+    -fx-background-color: -header-fleet-bg;
+    -fx-text-fill: -text-dim;
+}
+
+/* Hieu ung xem truoc khi re chuot dat tau tren ban co */
+.cell-place-valid {
+    -fx-background-color: rgba(0, 137, 123, 0.48) !important;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+
+.cell-place-invalid {
+    -fx-background-color: rgba(239, 83, 80, 0.55) !important;
+    -fx-background-radius: 8;
+    -fx-cursor: no-drop;
+}

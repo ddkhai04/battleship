@@ -1,3 +1,5 @@
+CREATE DATABASE  IF NOT EXISTS `battleship` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
+USE `battleship`;
 -- MySQL dump 10.13  Distrib 8.0.45, for Win64 (x86_64)
 --
 -- Host: 127.0.0.1    Database: battleship
@@ -21,31 +23,53 @@ SET @@SESSION.SQL_LOG_BIN= 0;
 -- GTID state at the beginning of the backup 
 --
 
-SET @@GLOBAL.GTID_PURGED=/*!80000 '+'*/ 'e905b65e-2930-11f1-8b20-fc5cee461ed4:1-6907';
+SET @@GLOBAL.GTID_PURGED=/*!80000 '+'*/ 'e905b65e-2930-11f1-8b20-fc5cee461ed4:1-9072';
 
 --
--- Table structure for table `users`
+-- Table structure for table `match_boards`
 --
 
-DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `match_boards`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `users` (
+CREATE TABLE `match_boards` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `nickname` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` enum('USER','ADMIN') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USER',
-  `status` enum('OFFLINE','ONLINE','IN_GAME') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'OFFLINE',
-  `score` int NOT NULL DEFAULT '0',
-  `wins` int NOT NULL DEFAULT '0',
-  `losses` int NOT NULL DEFAULT '0',
+  `match_id` int NOT NULL,
+  `player_id` int NOT NULL,
+  `ship_data` json NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `username` (`username`),
-  UNIQUE KEY `nickname` (`nickname`),
-  KEY `idx_leaderboard` (`score` DESC,`wins` DESC)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_match_player` (`match_id`,`player_id`),
+  KEY `player_id` (`player_id`),
+  CONSTRAINT `match_boards_ibfk_1` FOREIGN KEY (`match_id`) REFERENCES `matches` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `match_boards_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=31 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `match_turns`
+--
+
+DROP TABLE IF EXISTS `match_turns`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `match_turns` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `match_id` int NOT NULL,
+  `turn_number` int NOT NULL,
+  `player_id` int NOT NULL,
+  `coordinate` varchar(5) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `result` enum('MISS','HIT','SUNK') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sunk_ship_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `missile_type` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'SIMPLE',
+  `affected_cells` json DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `player_id` (`player_id`),
+  KEY `idx_match_turn` (`match_id`,`turn_number`),
+  CONSTRAINT `match_turns_ibfk_1` FOREIGN KEY (`match_id`) REFERENCES `matches` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `match_turns_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=459 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -73,52 +97,7 @@ CREATE TABLE `matches` (
   CONSTRAINT `matches_ibfk_2` FOREIGN KEY (`player2_id`) REFERENCES `users` (`id`),
   CONSTRAINT `matches_ibfk_3` FOREIGN KEY (`winner_id`) REFERENCES `users` (`id`),
   CONSTRAINT `matches_ibfk_4` FOREIGN KEY (`loser_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `match_boards`
---
-
-DROP TABLE IF EXISTS `match_boards`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `match_boards` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `match_id` int NOT NULL,
-  `player_id` int NOT NULL,
-  `ship_data` json NOT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_match_player` (`match_id`,`player_id`),
-  KEY `player_id` (`player_id`),
-  CONSTRAINT `match_boards_ibfk_1` FOREIGN KEY (`match_id`) REFERENCES `matches` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `match_boards_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Table structure for table `match_turns`
---
-
-DROP TABLE IF EXISTS `match_turns`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `match_turns` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `match_id` int NOT NULL,
-  `turn_number` int NOT NULL,
-  `player_id` int NOT NULL,
-  `coordinate` varchar(5) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `result` enum('MISS','HIT','SUNK') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `sunk_ship_type` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `player_id` (`player_id`),
-  KEY `idx_match_turn` (`match_id`,`turn_number`),
-  CONSTRAINT `match_turns_ibfk_1` FOREIGN KEY (`match_id`) REFERENCES `matches` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `match_turns_ibfk_2` FOREIGN KEY (`player_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -158,7 +137,7 @@ CREATE TABLE `user_ship_placements` (
   UNIQUE KEY `uq_user_placement` (`user_id`,`coordinate`),
   KEY `idx_user_ship_coord` (`user_id`,`coordinate`),
   CONSTRAINT `user_ship_placements_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -178,9 +157,33 @@ CREATE TABLE `user_shot_targets` (
   UNIQUE KEY `uq_user_target` (`user_id`,`coordinate`),
   KEY `idx_user_target_coord` (`user_id`,`coordinate`),
   CONSTRAINT `user_shot_targets_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=697 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+--
+-- Table structure for table `users`
+--
+
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `users` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nickname` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` enum('USER','ADMIN') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'USER',
+  `status` enum('OFFLINE','ONLINE','IN_GAME') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'OFFLINE',
+  `score` int NOT NULL DEFAULT '0',
+  `wins` int NOT NULL DEFAULT '0',
+  `losses` int NOT NULL DEFAULT '0',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
+  UNIQUE KEY `nickname` (`nickname`),
+  KEY `idx_leaderboard` (`score` DESC,`wins` DESC)
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 SET @@SESSION.SQL_LOG_BIN = @MYSQLDUMP_TEMP_LOG_BIN;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -192,4 +195,4 @@ SET @@SESSION.SQL_LOG_BIN = @MYSQLDUMP_TEMP_LOG_BIN;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-10-23 20:19:39
+-- Dump completed on 2026-10-25 19:08:55
