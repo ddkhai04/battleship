@@ -279,7 +279,10 @@ public class SocketClientManager {
 
                     gameRoomScreen.setOnExitGameClicked(() -> {
                         guiTinNhan(new MessageDTO("SURRENDER", null));
-                        if (gameStage != null) gameStage.close();
+                        if (gameStage != null) {
+                            gameStage.close();
+                            gameStage = null;
+                        }
                         quayVeSanh();
                     });
 
@@ -364,7 +367,10 @@ public class SocketClientManager {
 
                         gameRoomScreen.showResultPopup(isWinner, reason, () -> {
                             guiTinNhan(new MessageDTO("LEAVE_MATCH", null));
-                            if (gameStage != null) gameStage.close();
+                            if (gameStage != null) {
+                                gameStage.close();
+                                gameStage = null;
+                            }
                             quayVeSanh();
                         }, () -> {
                             guiTinNhan(new MessageDTO("REMATCH", null));
@@ -399,22 +405,45 @@ public class SocketClientManager {
 
             case "OPPONENT_QUIT":
             case "PLAYER_LEFT":
+            case "ROOM_CLOSED":
                 Platform.runLater(() -> {
-                    if (gameRoomScreen != null) {
-                        gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
-                            if (gameStage != null) gameStage.close();
-                            quayVeSanh();
-                        }, () -> {
-                            guiTinNhan(new MessageDTO("REMATCH", null));
-                            if (waitingAlert != null) waitingAlert.close();
-                            waitingAlert = new Alert(Alert.AlertType.INFORMATION);
-                            waitingAlert.setTitle("Đang chờ");
-                            waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
-                            waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
-                            DialogStyle.apply(waitingAlert);
-                            waitingAlert.show();
-                        });
+                    // Đóng các hộp thoại chờ nếu đang mở
+                    if (waitingAlert != null && waitingAlert.isShowing()) {
+                        waitingAlert.close();
+                        waitingAlert = null;
                     }
+
+                    // Tắt màn hình đếm ngược hoặc kết quả nếu có
+                    if (gameRoomScreen != null) {
+                        try {
+                            gameRoomScreen.hideCountdown();
+                            gameRoomScreen.hideResultPopup();
+                        } catch (Exception ignored) {}
+                    }
+
+                    // Hiển thị thông báo trận đấu bị hủy
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Thông báo");
+                    alert.setHeaderText("Trận đấu đã kết thúc / bị hủy!");
+                    
+                    String reasonText = "Đối thủ đã rời phòng.";
+                    if (payload != null && payload instanceof com.google.gson.internal.LinkedTreeMap) {
+                        try {
+                            JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                            if (obj.has("reason")) reasonText = "Lý do: " + obj.get("reason").getAsString();
+                        } catch (Exception ignored) {}
+                    }
+                    alert.setContentText(reasonText + " Đang quay về sảnh...");
+                    
+                    try { DialogStyle.apply(alert); } catch (Exception ignored) {}
+                    alert.showAndWait();
+
+                    // Đóng cửa sổ game và dọn dẹp để về sảnh
+                    if (gameStage != null) {
+                        gameStage.close();
+                        gameStage = null;
+                    }
+                    quayVeSanh();
                 });
                 break;
 
@@ -424,22 +453,29 @@ public class SocketClientManager {
                     Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                     alert.setTitle("Tái đấu");
                     alert.setHeaderText(challenger + " muốn tái đấu ván nữa!");
-                    alert.setContentText("Bạn có đồng ý không?");
+                    alert.setContentText("Bạn có đồng ý không (tự động hủy sau 30s)?");
 
                     javafx.scene.control.ButtonType btnDongY = new javafx.scene.control.ButtonType("Đồng ý", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
                     javafx.scene.control.ButtonType btnTuChoi = new javafx.scene.control.ButtonType("Từ chối", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
                     alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
                     DialogStyle.apply(alert);
 
-                    alert.showAndWait().ifPresent(ans -> {
+                    // Sử dụng setResultConverter để xử lý sự kiện không chặn luồng
+                    alert.setResultConverter(ans -> {
                         if (ans == btnDongY) {
                             guiTinNhan(new MessageDTO("REMATCH", null));
                         } else {
                             guiTinNhan(new MessageDTO("REJECT_REMATCH", null));
-                            if (gameStage != null) gameStage.close();
+                            if (gameStage != null) {
+                                gameStage.close();
+                                gameStage = null;
+                            }
                             quayVeSanh();
                         }
+                        return ans;
                     });
+                    
+                    alert.show(); // Hiển thị không chặn luồng
                 });
                 break;
 
