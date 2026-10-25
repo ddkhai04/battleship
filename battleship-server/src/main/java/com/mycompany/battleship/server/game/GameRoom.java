@@ -473,8 +473,7 @@ public class GameRoom {
 
     private void beginCountdown() {
         cancelPending();
-        rematchRequests.clear();
-        daRoiPhong.clear();
+        rematchRequests.clear();       
         playerA.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
         playerB.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
 
