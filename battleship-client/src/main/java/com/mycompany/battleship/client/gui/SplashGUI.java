@@ -24,6 +24,17 @@ public class SplashGUI extends Application {
     // Dùng static để nhạc không bị tắt khi chuyển scene
     private static MediaPlayer mediaPlayer;
 
+    // Trạng thái tắt tiếng dùng chung cho cả game (nhạc nền + hiệu ứng trong trận)
+    public static boolean tatTieng = false;
+
+    /** Bấm nút loa: đảo trạng thái tắt/bật tiếng. Nhạc nền tắt bằng setMute, hiệu ứng thì GameRoomGUI tự kiểm tra biến tatTieng. */
+    public static void doiTieng() {
+        tatTieng = !tatTieng;
+        if (mediaPlayer != null) {
+            mediaPlayer.setMute(tatTieng);
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Battleship Online - Khởi động");

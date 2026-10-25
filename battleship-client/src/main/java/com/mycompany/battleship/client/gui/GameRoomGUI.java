@@ -103,6 +103,7 @@ public class GameRoomGUI extends Application {
     private boolean isMyTurn = false;
 
     private void playSound(String fileName) {
+        if (SplashGUI.tatTieng) return; // đang tắt tiếng thì không phát hiệu ứng
         try {
             URL audioUrl = getClass().getResource("/" + fileName);
             if (audioUrl != null) {
@@ -224,7 +225,17 @@ public class GameRoomGUI extends Application {
             });
         });
 
-        HBox rightGroup = new HBox(20, player2Box, exitBtn);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "pi-mute" : "pi-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("pl-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("pi-volume", "pi-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "pi-mute" : "pi-volume");
+        });
+
+        HBox rightGroup = new HBox(20, player2Box, btnAmThanh, exitBtn);
         rightGroup.setPrefWidth(280);
         rightGroup.setAlignment(Pos.CENTER_RIGHT);
 
