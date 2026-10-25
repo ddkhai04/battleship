@@ -1,6 +1,7 @@
 package com.mycompany.battleship.client.gui;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mycompany.battleship.common.model.GameView;
@@ -170,7 +171,17 @@ private static void xuLyTinNhan(String duLieu) {
                     }
                 });
                 break;
-
+            case "SPECTATE_UPDATE":
+                try {
+                    com.google.gson.Gson gson = new com.google.gson.Gson();
+                    com.google.gson.JsonObject spectateData = gson.toJsonTree(msg.getPayload()).getAsJsonObject();
+                    javafx.application.Platform.runLater(() -> {
+                        SpectateGUI.moHoacCapNhat(spectateData);
+                    });
+                } catch (Exception e) {
+                    System.err.println("Lỗi cập nhật Spectate: " + e.getMessage());
+                }
+                break;
             case "INVITE_FROM":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {
@@ -332,7 +343,29 @@ private static void xuLyTinNhan(String duLieu) {
                     }
                 });
                 break;
+            case "REPLAY_DATA":
+                System.out.println(">>> [CLIENT] Da nhan duoc goi tin REPLAY_DATA tu Server!");
+                try {
+                    com.google.gson.Gson gson = new com.google.gson.Gson();
+                    // Chú ý: Dùng đúng tên biến MessageDTO trong vòng lặp của bạn (ví dụ: msg, messageDTO, dto)
+                    com.google.gson.JsonObject replayData = gson.toJsonTree(msg.getPayload()).getAsJsonObject(); 
 
+                    javafx.application.Platform.runLater(() -> {
+                        try {
+                            System.out.println(">>> [CLIENT] Dang khoi tao ReplayGUI...");
+                            ReplayGUI replayGUI = new ReplayGUI(replayData);
+                            replayGUI.show();
+                            System.out.println(">>> [CLIENT] Da hien thi ReplayGUI thanh cong!");
+                        } catch (Throwable t) {
+                            System.err.println(">>> [CLIENT] LOI KHI KHOI TAO ReplayGUI: " + t.getMessage());
+                            t.printStackTrace();
+                        }
+                    });
+                } catch (Exception e) {
+                    System.err.println(">>> [CLIENT] Loi parse goi tin REPLAY_DATA: " + e.getMessage());
+                    e.printStackTrace();
+                }
+                break;
             case "OPPONENT_QUIT":
             case "PLAYER_LEFT":
                 Platform.runLater(() -> {

@@ -1,6 +1,7 @@
 package com.mycompany.battleship.server.dao;
 
 import com.mycompany.battleship.common.model.MatchHistoryDTO;
+import com.mycompany.battleship.common.model.MatchTurn;
 import com.mycompany.battleship.server.db.DBContext;
 
 import java.sql.Connection;
@@ -11,6 +12,7 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class MatchDAO {
 
@@ -244,12 +246,11 @@ public class MatchDAO {
     }
 
     /**
-     * Lưu từng lượt bắn vào bảng match_turns
-     * result: 'MISS', 'HIT', 'SUNK'
+     * Lưu từng lượt bắn vào bảng match_turns (Hỗ trợ lưu loại đạn và toàn bộ các ô nổ)
      */
-    public boolean saveMatchTurn(int matchId, int turnNumber, int playerId, String coordinate, String result, String sunkShipType) {
-        String sql = "INSERT INTO match_turns (match_id, turn_number, player_id, coordinate, result, sunk_ship_type) "
-                + "VALUES (?, ?, ?, ?, ?, ?)";
+    public boolean saveMatchTurn(int matchId, int turnNumber, int playerId, String coordinate, String result, String sunkShipType, String missileType, String affectedCells) {
+        String sql = "INSERT INTO match_turns (match_id, turn_number, player_id, coordinate, result, sunk_ship_type, missile_type, affected_cells) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, matchId);
@@ -261,6 +262,12 @@ public class MatchDAO {
                 ps.setString(6, sunkShipType);
             } else {
                 ps.setNull(6, Types.VARCHAR);
+            }
+            ps.setString(7, missileType != null ? missileType : "SIMPLE");
+            if (affectedCells != null && !affectedCells.isEmpty()) {
+                ps.setString(8, affectedCells);
+            } else {
+                ps.setNull(8, Types.VARCHAR);
             }
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -417,5 +424,124 @@ public class MatchDAO {
             e.printStackTrace();
         }
         return heatmap;
+    }
+    /**
+     * Lấy vị trí tàu ban đầu của 2 người chơi từ match_boards
+     * Trả về Map<playerId, shipDataJson>
+     */
+    public java.util.Map<Integer, String> getMatchBoards(int matchId) {
+        java.util.Map<Integer, String> boards = new java.util.HashMap<>();
+        String sql = "SELECT player_id, ship_data FROM match_boards WHERE match_id = ?";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, matchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    boards.put(rs.getInt("player_id"), rs.getString("ship_data"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return boards;
+    }
+
+
+    /**
+     * Lấy toàn bộ các lượt bắn của trận đấu theo thứ tự từ bảng match_turns
+     */
+    public List<MatchTurn> getMatchTurns(int matchId) {
+        List<com.mycompany.battleship.common.model.MatchTurn> turns = new ArrayList<>();
+        String sql = "SELECT id, match_id, turn_number, player_id, coordinate, result, sunk_ship_type, missile_type, affected_cells, created_at "
+                   + "FROM match_turns WHERE match_id = ? ORDER BY turn_number ASC";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, matchId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    com.mycompany.battleship.common.model.MatchTurn turn = 
+                        new com.mycompany.battleship.common.model.MatchTurn(
+                            rs.getInt("id"),
+                            rs.getInt("match_id"),
+                            rs.getInt("turn_number"),
+                            rs.getInt("player_id"),
+                            rs.getString("coordinate"),
+                            com.mycompany.battleship.common.model.MatchTurn.TurnResult.valueOf(rs.getString("result")),
+                            rs.getString("sunk_ship_type"),
+                            rs.getString("missile_type"),
+                            rs.getString("affected_cells"),
+                            rs.getTimestamp("created_at")
+                    );
+                    turns.add(turn);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return turns;
+    }
+
+    /**
+     * Lấy danh sách các trận đã hoàn thành (FINISHED) để Admin chọn xem lại
+     */
+    public List<Map<String, Object>> getFinishedMatchesForAdmin() {
+        List<java.util.Map<String, Object>> list = new ArrayList<>();
+        String sql = "SELECT m.id, m.player1_id, u1.nickname AS p1_name, "
+                   + "m.player2_id, u2.nickname AS p2_name, "
+                   + "m.winner_id, uw.nickname AS winner_name, "
+                   + "m.played_at, m.duration_seconds "
+                   + "FROM matches m "
+                   + "JOIN users u1 ON m.player1_id = u1.id "
+                   + "JOIN users u2 ON m.player2_id = u2.id "
+                   + "LEFT JOIN users uw ON m.winner_id = uw.id "
+                   + "WHERE m.status = 'FINISHED' "
+                   + "ORDER BY m.played_at DESC LIMIT 50";
+        try (Connection conn = DBContext.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Map<String, Object> map = new java.util.HashMap<>();
+                map.put("matchId", rs.getInt("id"));
+                map.put("player1Id", rs.getInt("player1_id"));
+                map.put("player1Name", rs.getString("p1_name"));
+                map.put("player2Id", rs.getInt("player2_id"));
+                map.put("player2Name", rs.getString("p2_name"));
+                map.put("winnerId", rs.getInt("winner_id"));
+                map.put("winnerName", rs.getString("winner_name") != null ? rs.getString("winner_name") : "Hòa/Bỏ cuộc");
+                map.put("playedAt", rs.getTimestamp("played_at").toString());
+                map.put("duration", rs.getInt("duration_seconds"));
+                list.add(map);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+    public java.util.Map<String, Object> getMatchById(int matchId) {
+            Map<String, Object> map = new java.util.HashMap<>();
+            String sql = "SELECT m.id, m.player1_id, u1.nickname AS p1_name, m.player2_id, u2.nickname AS p2_name, m.winner_id, m.loser_id, m.status "
+                       + "FROM matches m "
+                       + "JOIN users u1 ON m.player1_id = u1.id "
+                       + "JOIN users u2 ON m.player2_id = u2.id "
+                       + "WHERE m.id = ?";
+            try (Connection conn = DBContext.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setInt(1, matchId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        map.put("matchId", rs.getInt("id"));
+                        map.put("player1Id", rs.getInt("player1_id"));
+                        map.put("player1Name", rs.getString("p1_name"));
+                        map.put("player2Id", rs.getInt("player2_id"));
+                        map.put("player2Name", rs.getString("p2_name"));
+                        map.put("winnerId", rs.getInt("winner_id"));
+                        map.put("loserId", rs.getInt("loser_id"));
+                        map.put("status", rs.getString("status"));
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        return map;
     }
 }

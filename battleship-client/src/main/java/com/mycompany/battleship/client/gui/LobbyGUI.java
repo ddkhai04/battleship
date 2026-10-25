@@ -45,7 +45,7 @@ public class LobbyGUI extends Application {
 
     public static String currentUsername = "";
     public static String currentScore = "0";
-
+    private static Stage activeLobbyStage;
     private Stage primaryStage;
     private Label lblUser;
     private Label lblScore;
@@ -67,6 +67,10 @@ public class LobbyGUI extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        if (activeLobbyStage != null && activeLobbyStage != primaryStage && activeLobbyStage.isShowing()) {
+            activeLobbyStage.close();
+        }
+        activeLobbyStage = primaryStage;
         this.primaryStage = primaryStage;
         primaryStage.setTitle("Battleship Online - Sảnh Chờ");
 
@@ -106,7 +110,16 @@ public class LobbyGUI extends Application {
         primaryStage.setScene(scene);
         primaryStage.show();
     }
-
+    public static void dongSanhChoHienTai() {
+        Platform.runLater(() -> {
+            if (SocketClientManager.lobbyScreen != null) {
+                SocketClientManager.lobbyScreen.batDauTranDau();
+            }
+            if (activeLobbyStage != null && activeLobbyStage.isShowing()) {
+                activeLobbyStage.close();
+            }
+        });
+    }
     private String duongDanCss() {
         return getClass().getResource("/game-style.css").toExternalForm();
     }

@@ -35,7 +35,10 @@ public class AdminGUI extends Application {
     // Bảng 2: Giám sát trận đấu đang diễn ra (ONGOING)
     private TableView<String[]> tblMatches;
     private ObservableList<String[]> dsMatches = FXCollections.observableArrayList();
-
+    
+    // Thêm danh sách ObservableList cho Finished Matches
+    private TableView<String[]> tblFinishedMatches;
+    private ObservableList<String[]> dsFinishedMatches = FXCollections.observableArrayList();
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
@@ -52,6 +55,7 @@ public class AdminGUI extends Application {
         tabPane.getTabs().add(taoTabQuanLyTaiKhoan());
         tabPane.getTabs().add(taoTabGiamSatTranDau());
         tabPane.getTabs().add(taoTabBieuDoNhiet());
+        tabPane.getTabs().add(taoTabLichSuReplay());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.getStyleClass().add("lobby-tabs");
 
@@ -324,7 +328,70 @@ public class AdminGUI extends Application {
 
         return new Tab("Giám sát trận đấu (Spectate)", taoNoiDungTab(toolbar, tblMatches));
     }
+    
+    private Tab taoTabLichSuReplay() {
+        Button btnRefresh = new Button("Làm mới danh sách");
+        btnRefresh.getStyleClass().add("lobby-btn-primary");
+        btnRefresh.setOnAction(e -> yeuCauDuLieuAdmin());
 
+        HBox toolbar = taoThanhCongCu(btnRefresh);
+
+        tblFinishedMatches = new TableView<>();
+        tuyChinhBang(tblFinishedMatches);
+
+        TableColumn<String[], String> colId = new TableColumn<>("Mã trận");
+        colId.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[0]));
+        colId.setMaxWidth(80);
+
+        TableColumn<String[], String> colP1 = new TableColumn<>("Người chơi 1");
+        colP1.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[1]));
+
+        TableColumn<String[], String> colP2 = new TableColumn<>("Người chơi 2");
+        colP2.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[2]));
+
+        TableColumn<String[], String> colWin = new TableColumn<>("Người thắng");
+        colWin.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[3]));
+
+        TableColumn<String[], String> colTime = new TableColumn<>("Thời gian đấu");
+        colTime.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue()[4]));
+
+        TableColumn<String[], Void> colAction = new TableColumn<>("Thao tác");
+        colAction.setPrefWidth(140);
+        colAction.setCellFactory(col -> new TableCell<>() {
+            private final Button btnReplay = new Button("▶️ Xem lại");
+            {
+                btnReplay.getStyleClass().add("lobby-btn-challenge");
+                btnReplay.setOnAction(e -> {
+                    try {
+                    String[] row = getTableView().getItems().get(getIndex());
+                    if (row == null || row.length == 0) return;
+
+                    int matchId = (int) Double.parseDouble(row[0].trim());
+                    System.out.println(">>> [CLIENT ADMIN] Da bam nut Xem lai tran #" + matchId);
+
+                    java.util.Map<String, Object> payload = new java.util.HashMap<>();
+                    payload.put("matchId", matchId);
+                    SocketClientManager.guiTinNhan(new MessageDTO("GET_REPLAY_DATA", payload));
+                    System.out.println(">>> [CLIENT ADMIN] Da gui lenh GET_REPLAY_DATA len Server");
+                } catch (Exception ex) {
+                    System.err.println(">>> [CLIENT ADMIN] Loi khi bam Xem lai: " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : btnReplay);
+            }
+        });
+
+        tblFinishedMatches.getColumns().addAll(colId, colP1, colP2, colWin, colTime, colAction);
+        tblFinishedMatches.setItems(dsFinishedMatches);
+
+        return new Tab("Lịch sử trận đấu (Replay)", taoNoiDungTab(toolbar, tblFinishedMatches));
+    }
     private void yeuCauDuLieuAdmin() {
         SocketClientManager.guiTinNhan(new MessageDTO("GET_ADMIN_DATA", null));
     }
@@ -415,6 +482,21 @@ public class AdminGUI extends Application {
                     String status = m.get("status").getAsString();
 
                     dsMatches.add(new String[]{matchId, p1, p2, status});
+                }
+            }
+            
+            if (payload.has("finishedMatches")) {
+                dsFinishedMatches.clear();
+                JsonArray arr = payload.getAsJsonArray("finishedMatches");
+                for (JsonElement el : arr) {
+                    JsonObject m = el.getAsJsonObject();
+                    // Ép sang int trước khi chuyển sang chuỗi
+                    String id = String.valueOf((int) m.get("matchId").getAsDouble());
+                    String p1 = m.get("player1Name").getAsString();
+                    String p2 = m.get("player2Name").getAsString();
+                    String win = m.get("winnerName").getAsString();
+                    String time = m.get("playedAt").getAsString();
+                    dsFinishedMatches.add(new String[]{id, p1, p2, win, time});
                 }
             }
         });

@@ -57,7 +57,14 @@ public class GameManager {
     public List<GameRoom> getAllRooms() {
         return new ArrayList<>(rooms.values());
     }
-
+    public GameRoom findByRoomId(String roomId) {
+        for (GameRoom room : getAllRooms()) {
+            if (room.getRoomId().equals(roomId)) {
+                return room;
+            }
+        }
+        return null;
+    }
     public Map<String, GameRoom> getRooms() {
         return rooms;
     }
