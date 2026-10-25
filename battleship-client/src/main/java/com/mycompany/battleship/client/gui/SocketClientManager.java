@@ -164,6 +164,8 @@ private static void xuLyTinNhan(String duLieu) {
                 });
                 break;
 
+                
+                
             case "RANK_LIST":
                 Platform.runLater(() -> {
                     if (lobbyScreen != null) {

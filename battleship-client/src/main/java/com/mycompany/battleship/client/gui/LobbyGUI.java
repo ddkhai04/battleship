@@ -368,7 +368,8 @@ public class LobbyGUI extends Application {
                         int matchId = Integer.parseInt(matchIdStr);
                         Map<String, Object> payload = new HashMap<>();
                         payload.put("matchId", matchId);
-                        SocketClientManager.guiTinNhan(new MessageDTO("GET_REPLAY", payload));
+                        // Đổi thành GET_REPLAY_DATA
+                        SocketClientManager.guiTinNhan(new MessageDTO("GET_REPLAY_DATA", payload)); 
                     } catch (NumberFormatException ex) {
                         System.err.println("Mã trận không hợp lệ: " + matchIdStr);
                     }
@@ -449,7 +450,10 @@ public class LobbyGUI extends Application {
                 JsonObject obj = el.getAsJsonObject();
                 String name = obj.has("nickname") ? obj.get("nickname").getAsString() : "";
                 String status = obj.has("status") ? obj.get("status").getAsString() : "";
-                String score = obj.has("score") ? obj.get("score").getAsString() : "0";
+                
+                // Ép kiểu điểm về int trước khi chuyển thành chuỗi để cắt đuôi .0
+                String score = obj.has("score") ? String.valueOf(obj.get("score").getAsInt()) : "0";
+                
                 dsNguoiChoi.add(new String[]{name, status, score});
             }
         } catch (Exception e) {
@@ -464,7 +468,9 @@ public class LobbyGUI extends Application {
             JsonArray array = JsonParser.parseString(jsonString).getAsJsonArray();
             for (JsonElement el : array) {
                 JsonObject obj = el.getAsJsonObject();
-                String id = obj.has("matchId") ? obj.get("matchId").getAsString() : "";
+                
+                // Ép kiểu matchId về int để nút "Xem lại" truyền chuẩn ID vào Server
+                String id = obj.has("matchId") ? String.valueOf(obj.get("matchId").getAsInt()) : "";
                 String opp = obj.has("opponentNickname") ? obj.get("opponentNickname").getAsString() : "";
                 String result = obj.has("result") ? obj.get("result").getAsString() : "";
                 
@@ -488,9 +494,11 @@ public class LobbyGUI extends Application {
             for (JsonElement el : array) {
                 JsonObject obj = el.getAsJsonObject();
                 String name = obj.has("nickname") ? obj.get("nickname").getAsString() : "";
-                String wins = obj.has("wins") ? obj.get("wins").getAsString() : "0";
-                String losses = obj.has("losses") ? obj.get("losses").getAsString() : "0";
-                String score = obj.has("score") ? obj.get("score").getAsString() : "0";
+                
+                // Ép kiểu hàng loạt thắng, thua, điểm về int
+                String wins = obj.has("wins") ? String.valueOf(obj.get("wins").getAsInt()) : "0";
+                String losses = obj.has("losses") ? String.valueOf(obj.get("losses").getAsInt()) : "0";
+                String score = obj.has("score") ? String.valueOf(obj.get("score").getAsInt()) : "0";
                 
                 dsXepHang.add(new String[]{String.valueOf(rank), name, wins, losses, score});
                 
