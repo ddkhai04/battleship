@@ -480,7 +480,31 @@ public class ClientHandler implements Runnable {
     private void handleRematch() {
         if (this.loggedInUsername == null) return;
         GameRoom room = BattleshipServer.gameManager.findByPlayer(this.loggedInUsername);
-        if (room == null) return;
+        if (room == null) {
+            sendMessage(new MessageDTO("GAME_ERROR", "Không tìm thấy thông tin phòng đấu!"));
+            return;
+        }
+
+        String opponent = room.getInviterId().equals(this.loggedInUsername)
+                ? room.getInviteeId()
+                : room.getInviterId();
+
+        ClientHandler oppHandler = BattleshipServer.onlineUsers.get(opponent);
+
+        // 1. Kiểm tra nếu đối thủ đã Offline
+        if (oppHandler == null || oppHandler.currentUser == null) {
+            sendMessage(new MessageDTO("GAME_ERROR", "Đối thủ hiện đã Offline, không thể tái đấu!"));
+            return;
+        }
+
+        // 2. Kiểm tra nếu đối thủ đã sang đánh trận khác
+        GameRoom oppRoom = BattleshipServer.gameManager.findByPlayer(opponent);
+        if (oppRoom != null && !oppRoom.getRoomId().equals(room.getRoomId())) {
+            sendMessage(new MessageDTO("GAME_ERROR", "Đối thủ đang trong một trận đấu khác!"));
+            return;
+        }
+
+        // 3. Gửi thông báo tái đấu cho đối thủ
         try {
             room.requestRematch(this.loggedInUsername);
         } catch (GameException e) {

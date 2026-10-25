@@ -172,8 +172,11 @@ public class GameRoom {
     /** Người chơi bấm "Tái đấu". Khi cả hai đã bấm thì bắt đầu ván mới. */
     public synchronized void requestRematch(String playerId) {
         stateOf(playerId);
-        if (phase == GamePhase.CLOSED) throw new GameException(GameException.Code.ROOM_CLOSED, "Đối thủ đã rời phòng");
+        if (phase == GamePhase.CLOSED) {
+            throw new GameException(GameException.Code.ROOM_CLOSED, "Đối thủ đã rời phòng hoặc offline");
+        }
         if (phase != GamePhase.FINISHED) throw new GameException(GameException.Code.INVALID_STATE, "Trận chưa kết thúc");
+        
         if (!rematchRequests.add(playerId)) return;
         if (rematchRequests.size() == 2) {
             beginCountdown();
@@ -183,17 +186,22 @@ public class GameRoom {
     }
 
     /**
-     * Rời phòng: bấm "Về sảnh" hoặc mất kết nối. Đang đánh => bị xử thua; sau khi rời phòng đóng
-     * (không thể tái đấu). Gọi nhiều lần / sau khi đã đóng thì bỏ qua.
+     * Rời phòng: bấm "Về sảnh" hoặc mất kết nối.
      */
     public synchronized void leave(String playerId) {
         if (phase == GamePhase.CLOSED || !isMember(playerId)) return;
         PlayerState leaver = stateOf(playerId);
         if (phase == GamePhase.PLAYING) {
             finish(opponentOf(leaver).id(), leaver.id(), GameResult.Reason.LEFT);
+            notifyListener(l -> l.onPlayerLeft(this, playerId));
+            close();
+        } else if (phase == GamePhase.FINISHED) {
+            // Trận đã kết thúc, 1 người về sảnh -> Không gọi close() để người còn lại vẫn bấm Tái đấu được
+            rematchRequests.remove(playerId);
+        } else {
+            notifyListener(l -> l.onPlayerLeft(this, playerId));
+            close();
         }
-        notifyListener(l -> l.onPlayerLeft(this, playerId));
-        close();
     }
 
     // ------------------------------------------------------------------ bắn

@@ -216,6 +216,9 @@ private static void xuLyTinNhan(String duLieu) {
 
             case "MATCH_START":
                 Platform.runLater(() -> {
+                    if (lobbyScreen != null) {
+                      lobbyScreen.batDauTranDau();
+                    }
                     if (gameStage != null) {
                         gameStage.close();
                     }
@@ -368,16 +371,24 @@ private static void xuLyTinNhan(String duLieu) {
                 break;
             case "OPPONENT_QUIT":
             case "PLAYER_LEFT":
-                Platform.runLater(() -> {
-                    if (gameRoomScreen != null) {
-                        gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
-                            if (gameStage != null) gameStage.close();
-                            quayVeSanh();
-                        }, null);
-                    }
-                });
-                break;
-
+              Platform.runLater(() -> {
+                  if (gameRoomScreen != null) {
+                      gameRoomScreen.showResultPopup(true, "SURRENDER", () -> {
+                          if (gameStage != null) gameStage.close();
+                          quayVeSanh();
+                      }, () -> {
+                          guiTinNhan(new MessageDTO("REMATCH", null));
+                          if (waitingAlert != null) waitingAlert.close();
+                          waitingAlert = new Alert(Alert.AlertType.INFORMATION);
+                          waitingAlert.setTitle("Đang chờ");
+                          waitingAlert.setHeaderText("Đã gửi yêu cầu tái đấu!");
+                          waitingAlert.setContentText("Đang chờ đối phương xác nhận...");
+                          DialogStyle.apply(waitingAlert);
+                          waitingAlert.show();
+                      });
+                  }
+              });
+              break;
             case "REMATCH_REQUESTED":
                 Platform.runLater(() -> {
                     String challenger = payload != null ? payload.toString() : "Đối thủ";
@@ -404,21 +415,27 @@ private static void xuLyTinNhan(String duLieu) {
                 break;
             
             case "REMATCH_DECLINED":
-                Platform.runLater(() -> {
-                    if (waitingAlert != null) {
-                        waitingAlert.close();
-                        waitingAlert = null;
-                    }
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Thông báo");
-                    alert.setHeaderText("Đối thủ đã từ chối tái đấu!");
-                    DialogStyle.apply(alert);
-                    alert.showAndWait();
-                    
-                    if (gameStage != null) gameStage.close();
-                    quayVeSanh();
-                });
-                break;  
+              Platform.runLater(() -> {
+                  if (waitingAlert != null) {
+                      waitingAlert.close();
+                      waitingAlert = null;
+                  }
+                  String msgDecline = (payload instanceof String && !((String) payload).isEmpty() && !((String) payload).equals(LobbyGUI.currentUsername))
+                          ? (String) payload
+                          : "Đối thủ đã từ chối tái đấu!";
+                  Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                  alert.setTitle("Thông báo");
+                  alert.setHeaderText(msgDecline);
+                  DialogStyle.apply(alert);
+                  alert.showAndWait();
+
+                  if (gameStage != null) {
+                      gameStage.close();
+                      gameStage = null;
+                  }
+                  quayVeSanh();
+              });
+              break; 
             case "HEATMAP_DATA":
                 Platform.runLater(() -> {
                     if (payload != null) {
@@ -459,11 +476,15 @@ private static void xuLyTinNhan(String duLieu) {
     }
 
     private static void quayVeSanh() {
-        try {
-            new LobbyGUI().start(new Stage());
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+      try {
+          gameRoomScreen = null;
+          if (lobbyScreen != null) {
+              lobbyScreen.batDauTranDau(); // Đảm bảo đóng stage cũ nếu còn sót
+          }
+          new LobbyGUI().start(new Stage());
+      } catch (Exception ex) {
+          ex.printStackTrace();
+      }
     }
 
     public static void dongKetNoi() {

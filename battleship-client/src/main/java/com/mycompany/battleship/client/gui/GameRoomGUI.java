@@ -550,9 +550,24 @@ public class GameRoomGUI extends Application {
         return overlay;
     }
 
-    public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLobby, Runnable onRematch) {
-        resultTitle.getStyleClass().removeAll("dialog-title-win", "dialog-title-lose");
+public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLobby, Runnable onRematch) {
         stopTurnTimer();
+
+        if (resultOverlay.isVisible() && ("LEFT".equals(reason) || "SURRENDER".equals(reason))) {
+            rematchBtn.setVisible(true);
+            rematchBtn.setManaged(true);
+            rematchBtn.setDisable(false);
+            rematchBtn.setText("Tái đấu");
+            return;
+        }
+
+        resultTitle.getStyleClass().removeAll("dialog-title-win", "dialog-title-lose");
+
+        // 2. Luôn hiển thị và reset lại nút "Tái đấu" về trạng thái ban đầu
+        rematchBtn.setVisible(true);
+        rematchBtn.setManaged(true);
+        rematchBtn.setDisable(false);
+        rematchBtn.setText("Tái đấu");
 
         if (isWinner) {
             resultIcon.setText("★");
@@ -560,16 +575,10 @@ public class GameRoomGUI extends Application {
             resultTitle.getStyleClass().add("dialog-title-win");
             if ("SURRENDER".equals(reason) || "LEFT".equals(reason)) {
                 resultSubtitle.setText("Đối thủ đã bỏ chạy. Bạn được xử thắng!");
-                rematchBtn.setVisible(false);
-                rematchBtn.setManaged(false);
             } else if ("TIMEOUT".equals(reason)) {
                 resultSubtitle.setText("Đối thủ hết thời gian suy nghĩ!");
-                rematchBtn.setVisible(true);
-                rematchBtn.setManaged(true);
             } else {
                 resultSubtitle.setText("Bạn đã đánh chìm toàn bộ hạm đội đối phương.");
-                rematchBtn.setVisible(true);
-                rematchBtn.setManaged(true);
             }
         } else {
             resultIcon.setText("✖");
@@ -577,16 +586,10 @@ public class GameRoomGUI extends Application {
             resultTitle.getStyleClass().add("dialog-title-lose");
             if ("SURRENDER".equals(reason) || "LEFT".equals(reason)) {
                 resultSubtitle.setText("Bạn đã đầu hàng và rời trận đấu.");
-                rematchBtn.setVisible(false);
-                rematchBtn.setManaged(false);
             } else if ("TIMEOUT".equals(reason)) {
                 resultSubtitle.setText("Bạn đã hết thời gian suy nghĩ!");
-                rematchBtn.setVisible(true);
-                rematchBtn.setManaged(true);
             } else {
                 resultSubtitle.setText("Hạm đội của bạn đã bị đánh chìm hoàn toàn.");
-                rematchBtn.setVisible(true);
-                rematchBtn.setManaged(true);
             }
         }
 
@@ -603,12 +606,32 @@ public class GameRoomGUI extends Application {
         resultOverlay.setVisible(true);
         resultOverlay.setManaged(true);
     }
-
     public void hideResultPopup() {
         resultOverlay.setVisible(false);
         resultOverlay.setManaged(false);
     }
+    public void showRematchRequestPopup(String opponentName, Runnable onAccept, Runnable onDecline) {
+        javafx.application.Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Lời mời tái đấu");
+            alert.setHeaderText(opponentName + " muốn tái đấu với bạn!");
+            alert.setContentText("Bạn có đồng ý chơi tiếp ván mới không?");
 
+            ButtonType btnDongY = new ButtonType("Đồng ý", ButtonBar.ButtonData.OK_DONE);
+            ButtonType btnTuChoi = new ButtonType("Từ chối", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(btnDongY, btnTuChoi);
+            DialogStyle.apply(alert);
+
+            alert.showAndWait().ifPresent(type -> {
+                if (type == btnDongY) {
+                    hideResultPopup();
+                    if (onAccept != null) onAccept.run();
+                } else {
+                    if (onDecline != null) onDecline.run();
+                }
+            });
+        });
+    }
     public void setOnAttackCellClicked(BiConsumer<Integer, Integer> listener) {
         this.onAttackCellClicked = listener;
     }
