@@ -5,8 +5,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mycompany.battleship.common.model.MessageDTO;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.NumberBinding;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -37,6 +40,10 @@ public class SpectateGUI extends Stage {
     private static final int GRID_SIZE = 10;
     private static final double CELL_SIZE = 36;
 
+    // Khung chuẩn 1000x680 giống màn trận đấu; cửa sổ to/nhỏ thì phóng/thu theo tỷ lệ
+    private static final double KHUNG_RONG = 1000;
+    private static final double KHUNG_CAO = 680;
+
     private static SpectateGUI instance;
 
     private final StackPane[][] p1Cells = new StackPane[GRID_SIZE][GRID_SIZE];
@@ -65,26 +72,26 @@ public class SpectateGUI extends Stage {
         setTitle("Battleship - Giám sát trận đấu (God View)");
 
         BorderPane gameLayout = createRootLayout();
+        gameLayout.setMinSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setPrefSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setMaxSize(KHUNG_RONG, KHUNG_CAO);
+        Group nhomCoGian = new Group(gameLayout);
 
-        ImageView bgImageView = new ImageView();
-        try {
-            URL bgUrl = getClass().getResource("/ocean-bg.gif");
-            if (bgUrl == null) bgUrl = getClass().getResource("/bg.png");
-            if (bgUrl != null) {
-                bgImageView.setImage(new Image(bgUrl.toExternalForm()));
-                bgImageView.fitWidthProperty().bind(widthProperty());
-                bgImageView.fitHeightProperty().bind(heightProperty());
-            }
-        } catch (Exception ignored) {}
+        StackPane rootStack = new StackPane(nhomCoGian);
+        rootStack.getStyleClass().addAll("app-background", "pl-game");
 
-        StackPane rootStack = new StackPane(bgImageView, gameLayout);
-        rootStack.getStyleClass().add("app-background");
-
-        Scene scene = new Scene(rootStack, 1000, 680);
+        Scene scene = new Scene(rootStack, KHUNG_RONG, KHUNG_CAO);
         scene.getStylesheets().add(resolveCssPath());
+        scene.getStylesheets().add(getClass().getResource("/player.css").toExternalForm());
+
+        NumberBinding tiLe = Bindings.min(scene.widthProperty().divide(KHUNG_RONG),
+                scene.heightProperty().divide(KHUNG_CAO));
+        gameLayout.scaleXProperty().bind(tiLe);
+        gameLayout.scaleYProperty().bind(tiLe);
+        setMinWidth(760);
+        setMinHeight(560);
 
         setScene(scene);
-        setResizable(false);
         setOnCloseRequest(e -> thoatCheDoXem());
     }
 
@@ -94,6 +101,16 @@ public class SpectateGUI extends Stage {
             return cssUrl.toExternalForm();
         }
         return new File("game-style.css").toURI().toString();
+    }
+
+    /** Icon vẽ bằng đường SVG (hình dạng nằm trong player.css). */
+    private Region taoIcon(String loai, double co) {
+        Region icon = new Region();
+        icon.getStyleClass().addAll("pl-icon", loai);
+        icon.setMinSize(co, co);
+        icon.setPrefSize(co, co);
+        icon.setMaxSize(co, co);
+        return icon;
     }
 
     private void thoatCheDoXem() {
@@ -122,9 +139,8 @@ public class SpectateGUI extends Stage {
 
         HBox player2Box = createPlayerInfo("P2", "avatar-color-2", false);
 
-        // NÚT THOÁT ✖ MÀU ĐỎ CHUẨN GIAO DIỆN
-        Button exitBtn = new Button("Thoát ✖");
-        exitBtn.setStyle("-fx-background-color: #ff4d4f; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-cursor: hand;");
+        Button exitBtn = new Button("Thoát", taoIcon("pi-flag", 14));
+        exitBtn.getStyleClass().add("pl-btn-exit");
         exitBtn.setOnAction(e -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Rời chế độ giám sát");
@@ -143,7 +159,17 @@ public class SpectateGUI extends Stage {
             });
         });
 
-        HBox rightGroup = new HBox(20, player2Box, exitBtn);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "pi-mute" : "pi-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("pl-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("pi-volume", "pi-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "pi-mute" : "pi-volume");
+        });
+
+        HBox rightGroup = new HBox(20, player2Box, btnAmThanh, exitBtn);
         rightGroup.setPrefWidth(280);
         rightGroup.setAlignment(Pos.CENTER_RIGHT);
 
@@ -176,7 +202,7 @@ public class SpectateGUI extends Stage {
         Label nameLabel = new Label(defaultName);
         nameLabel.getStyleClass().add("player-name");
 
-        Label badge = new Label("SPECTATING");
+        Label badge = new Label("ĐANG XEM");
         badge.getStyleClass().add("score-badge");
 
         VBox textBox = new VBox(3, nameLabel, badge);
@@ -200,10 +226,11 @@ public class SpectateGUI extends Stage {
         timerPane.setMinSize(64, 64);
         timerPane.setMaxSize(64, 64);
         Circle bg = new Circle(30);
-        bg.getStyleClass().add("timer-circle-bg");
-        timerLabel = new Label("👁️");
-        timerLabel.getStyleClass().add("timer-label");
-        timerPane.getChildren().addAll(bg, timerLabel);
+        bg.getStyleClass().add("pl-timer-bg");
+        Region iconMat = taoIcon("pi-eye", 26);
+        iconMat.getStyleClass().add("pl-eye-icon");
+        timerLabel = new Label();
+        timerPane.getChildren().addAll(bg, iconMat);
         return timerPane;
     }
 
@@ -212,6 +239,7 @@ public class SpectateGUI extends Stage {
         boards.getStyleClass().add("boards-area");
         boards.setAlignment(Pos.CENTER);
         boards.setPadding(new Insets(24));
+        boards.setFillHeight(false);   // khung ôm vừa lưới 10x10
 
         boards.getChildren().addAll(
                 createBoardPanel("Hạm đội của P1", "board-header-fleet", p1Cells, true),
@@ -223,7 +251,7 @@ public class SpectateGUI extends Stage {
     private VBox createBoardPanel(String title, String headerClass, StackPane[][] cells, boolean isP1) {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
-        Label header = new Label(title);
+        Label header = new Label(title, taoIcon("pi-boat", 16));
         header.getStyleClass().addAll("board-header", headerClass);
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -281,7 +309,7 @@ public class SpectateGUI extends Stage {
         if (!turn.isEmpty() && !"FINISHED".equalsIgnoreCase(phase)) {
             turnIndicatorLabel.setText("Lượt bắn: " + turn);
         } else {
-            turnIndicatorLabel.setText("🏁 Trận đấu đã kết thúc");
+            turnIndicatorLabel.setText("Trận đấu đã kết thúc");
             if (!daHienThongBaoKetThuc && ("FINISHED".equalsIgnoreCase(phase) || turn.isEmpty())) {
                 daHienThongBaoKetThuc = true;
                 String winner = data.has("winner") && !data.get("winner").isJsonNull() ? data.get("winner").getAsString() : "";
@@ -302,8 +330,8 @@ public class SpectateGUI extends Stage {
                 Platform.runLater(() -> {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
                     alert.setTitle("Kết thúc trận đấu");
-                    alert.setHeaderText(winner.isEmpty() ? "Trận đấu đã kết thúc!" : "🏆 Chiến thắng: " + winner);
-                    alert.setContentText((!loser.isEmpty() ? "❌ Thất bại: " + loser + "\n" : "") + "📌 Lý do: " + lyDoText);
+                    alert.setHeaderText(winner.isEmpty() ? "Trận đấu đã kết thúc!" : "Chiến thắng: " + winner);
+                    alert.setContentText((!loser.isEmpty() ? "Thất bại: " + loser + "\n" : "") + "Lý do: " + lyDoText);
                     DialogStyle.apply(alert);
                     alert.show();
                 });
