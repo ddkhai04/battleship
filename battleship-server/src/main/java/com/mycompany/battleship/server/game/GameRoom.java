@@ -29,18 +29,11 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Phòng chơi + trọng tài của một trận giữa 2 người. Server là nguồn sự thật duy nhất:
- * client chỉ gửi "bắn loại đạn X vào ô Y", mọi kiểm tra và tính toán đều làm ở đây.
- *
- * Vòng đời: CREATED -> COUNTDOWN (3-2-1) -> PLAYING -> FINISHED -> (Tái đấu: COUNTDOWN ...) -> CLOSED.
- * Mọi hàm public đều thread-safe (synchronized); bộ đếm 45s chạy trên ScheduledExecutorService dùng chung.
- */
 public class GameRoom {
     private static final Logger LOG = Logger.getLogger(GameRoom.class.getName());
 
     private final String roomId;
-    private final PlayerState playerA;   
+    private final PlayerState playerA;
     private final PlayerState playerB;
     private final GameConfig config;
     private final ScheduledExecutorService scheduler;
@@ -51,15 +44,15 @@ public class GameRoom {
     private final Set<String> daRoiPhong = new HashSet<>();
     private final ChatLog chat;
     private GameResult lastResult;
-    
+
     private GamePhase phase = GamePhase.CREATED;
-    private long epoch;                       // tăng mỗi khi đổi lượt/giai đoạn -> vô hiệu hoá timer cũ
+    private long epoch;
     private ScheduledFuture<?> pendingTask;
     private String currentTurnId;
     private long turnDeadlineMillis;
     private long matchStartMillis;
     private Runnable onClosed = () -> { };
-    
+
     private int dbMatchId = -1;
     private int playerAId = -1;
     private int playerBId = -1;
@@ -67,9 +60,7 @@ public class GameRoom {
     private final java.util.List<com.mycompany.battleship.server.ClientHandler> spectators = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final com.google.gson.Gson gson = new com.google.gson.Gson();
 
-    
-    // Constructor cập nhật nhận thêm userId từ DB:
-    public GameRoom(String roomId, int dbMatchId, int playerAId, String inviterId, int playerBId, String inviteeId, 
+    public GameRoom(String roomId, int dbMatchId, int playerAId, String inviterId, int playerBId, String inviteeId,
                     GameConfig config, ScheduledExecutorService scheduler, GameEventListener listener) {
         this.roomId = roomId;
         this.dbMatchId = dbMatchId;
@@ -83,58 +74,6 @@ public class GameRoom {
         this.chat = new ChatLog(config);
     }
 
-    // Hàm thêm / bớt Spectator (Admin)
-    public void addSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
-        spectators.add(adminHandler);
-        broadcastGodViewToSpectators();
-    }
-
-    public void removeSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
-        spectators.remove(adminHandler);
-    }
-
-    // Phát toàn bộ vị trí tàu của 2 bên cho Spectator (God View)
-        public void broadcastGodViewToSpectators() {
-        if (spectators.isEmpty()) return;
-        Board b1 = playerA.board();
-        Board b2 = playerB.board();
-        if (b1 == null || b2 == null) return;
-
-        // Tạo ma trận hiển thị: 'S'=Tàu nguyên, 'X'=Tàu bị bắn trúng, 'o'=Bắn hụt, '.'=Nước biển
-        char[][] grid1 = new char[10][10];
-        char[][] grid2 = new char[10][10];
-
-        for (int r = 0; r < 10; r++) {
-            for (int c = 0; c < 10; c++) {
-                Point p = new Point(r, c);
-                if (b1.hasShip(p)) grid1[r][c] = b1.isMarked(p) ? 'X' : 'S';
-                else grid1[r][c] = b1.isMarked(p) ? 'o' : '.';
-
-                if (b2.hasShip(p)) grid2[r][c] = b2.isMarked(p) ? 'X' : 'S';
-                else grid2[r][c] = b2.isMarked(p) ? 'o' : '.';
-            }
-        }
-        
-        Map<String, Object> godData = new HashMap<>();
-        godData.put("roomId", roomId);
-        godData.put("player1", playerA.id());
-        godData.put("player2", playerB.id());
-        godData.put("currentTurn", currentTurnId);
-        godData.put("phase", phase.name());
-        godData.put("grid1", grid1);
-        godData.put("grid2", grid2);
-
-        if (lastResult != null && phase == GamePhase.FINISHED) {
-            godData.put("winner", lastResult.getWinnerId());
-            godData.put("loser", lastResult.getLoserId());
-            godData.put("reason", lastResult.getReason().name());
-        }
-        com.mycompany.battleship.common.model.MessageDTO msg = 
-            new com.mycompany.battleship.common.model.MessageDTO("SPECTATE_UPDATE", godData);
-        for (ClientHandler sp : spectators) {
-            sp.sendMessage(msg);
-        }
-    }
     public GameRoom(String roomId, String inviterId, String inviteeId, GameConfig config,
                     ScheduledExecutorService scheduler, GameEventListener listener) {
         if (inviterId == null || inviteeId == null || inviterId.equals(inviteeId)) {
@@ -149,7 +88,54 @@ public class GameRoom {
         this.chat = new ChatLog(config);
     }
 
-    // ------------------------------------------------------------------ getters
+    public void addSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
+        spectators.add(adminHandler);
+        broadcastGodViewToSpectators();
+    }
+
+    public void removeSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
+        spectators.remove(adminHandler);
+    }
+
+    public void broadcastGodViewToSpectators() {
+        if (spectators.isEmpty()) return;
+        Board b1 = playerA.board();
+        Board b2 = playerB.board();
+
+        char[][] grid1 = new char[10][10];
+        char[][] grid2 = new char[10][10];
+
+        for (int r = 0; r < 10; r++) {
+            for (int c = 0; c < 10; c++) {
+                Point p = new Point(r, c);
+                if (b1 != null && b1.hasShip(p)) grid1[r][c] = b1.isMarked(p) ? 'X' : 'S';
+                else grid1[r][c] = (b1 != null && b1.isMarked(p)) ? 'o' : '.';
+
+                if (b2 != null && b2.hasShip(p)) grid2[r][c] = b2.isMarked(p) ? 'X' : 'S';
+                else grid2[r][c] = (b2 != null && b2.isMarked(p)) ? 'o' : '.';
+            }
+        }
+
+        Map<String, Object> godData = new HashMap<>();
+        godData.put("roomId", roomId);
+        godData.put("player1", playerA.id());
+        godData.put("player2", playerB.id());
+        godData.put("currentTurn", currentTurnId);
+        godData.put("phase", phase.name());
+        godData.put("grid1", grid1);
+        godData.put("grid2", grid2);
+
+        if (lastResult != null && phase == GamePhase.FINISHED) {
+            godData.put("winner", lastResult.getWinnerId());
+            godData.put("loser", lastResult.getLoserId());
+            godData.put("reason", lastResult.getReason().name());
+        }
+        com.mycompany.battleship.common.model.MessageDTO msg =
+            new com.mycompany.battleship.common.model.MessageDTO("SPECTATE_UPDATE", godData);
+        for (ClientHandler sp : spectators) {
+            sp.sendMessage(msg);
+        }
+    }
 
     public String getRoomId() { return roomId; }
     public String getInviterId() { return playerA.id(); }
@@ -160,45 +146,120 @@ public class GameRoom {
         return playerA.id().equals(playerId) || playerB.id().equals(playerId);
     }
 
-    /** GameManager đăng ký để gỡ phòng khỏi danh sách khi phòng đóng. */
     void setOnClosed(Runnable r) { this.onClosed = r; }
 
-    // ------------------------------------------------------------------ vòng đời
-
-    /** Sinh bàn, chạy đếm ngược 3-2-1, sau đó người mời đi trước. Gọi khi B đã đồng ý lời thách đấu. */
+    /** Mở giai đoạn đặt tàu 45s. */
     public synchronized void start() {
         if (phase != GamePhase.CREATED) throw new GameException(GameException.Code.INVALID_STATE, "Phòng đã bắt đầu");
-        beginCountdown();
+        beginSetup();
     }
 
-    /** Người chơi bấm "Tái đấu". Khi cả hai đã bấm thì bắt đầu ván mới. */
+    /**
+     * Nhận vị trí tàu từ Client trong giai đoạn SETUP (hỗ trợ cả khi mới đặt 1..4 tàu để Admin xem real-time).
+     * @param shipLists danh sách các tàu đang đặt trên bàn; nếu rỗng/null thì bàn trống.
+     * @param ready true nếu người chơi bấm nút "Sẵn sàng" khóa bàn cờ.
+     */
+    public synchronized void placeShips(String playerId, List<List<Point>> shipLists, boolean ready) {
+        if (phase != GamePhase.SETUP) return;
+        PlayerState ps = stateOf(playerId);
+        if (ps.isReady()) return; // Đã khóa bàn thì không sửa nữa
+
+        if (shipLists != null && !shipLists.isEmpty()) {
+            // Nếu người chơi đã đặt đủ 5 tàu, kiểm tra chuẩn kích thước bằng Board.fromShips
+            if (shipLists.size() == config.getShipLengths().length) {
+                Board fullBoard = Board.fromShips(shipLists, config.getShipLengths());
+                if (fullBoard == null) {
+                    throw new GameException(GameException.Code.OUT_OF_BOUNDS, "Bố trí tàu không hợp lệ (các tàu phải cách nhau ít nhất 1 ô)!");
+                }
+                ps.setBoard(fullBoard);
+            } else {
+                // Nếu đang đặt dở (1..4 tàu), dựng bàn nháp để phát trực tiếp cho Admin xem
+                Board draftBoard = buildPartialOrFullBoard(shipLists);
+                if (draftBoard != null) {
+                    ps.setBoard(draftBoard);
+                }
+            }
+        } else if (!ready) {
+            ps.setBoard(new Board());
+        }
+
+        if (ready) {
+            // Khi bấm Sẵn sàng, đảm bảo phải đủ 5 tàu chuẩn kích thước
+            if (ps.board() == null || ps.board().getShips().size() != config.getShipLengths().length) {
+                ps.setBoard(BoardGenerator.generate(config.getShipLengths(), rng));
+            }
+            ps.setReady(true);
+            notifyListener(l -> l.onPlayerReady(this, playerId));
+
+            // Nếu cả 2 người chơi đều đã bấm Sẵn sàng thì vào đếm ngược 3-2-1 luôn
+            if (playerA.isReady() && playerB.isReady()) {
+                cancelPending();
+                beginCountdown();
+            }
+        }
+        broadcastGodViewToSpectators();
+    }
+
+    /** Cho phép dựng bàn cờ từ 1..4 tàu đang đặt dở để hiển thị lên God View cho Admin. */
+    private Board buildPartialOrFullBoard(List<List<Point>> shipCellsList) {
+        Board board = new Board();
+        if (shipCellsList == null || shipCellsList.isEmpty()) {
+            return board;
+        }
+
+        for (List<Point> rawCells : shipCellsList) {
+            if (rawCells == null || rawCells.isEmpty()) continue;
+            List<Point> sorted = new ArrayList<>(rawCells);
+            sorted.sort((a, b) -> (a.getRow() == b.getRow())
+                    ? Integer.compare(a.getCol(), b.getCol())
+                    : Integer.compare(a.getRow(), b.getRow()));
+
+            boolean sameRow = true;
+            boolean sameCol = true;
+            for (int i = 1; i < sorted.size(); i++) {
+                if (sorted.get(i).getRow() != sorted.get(0).getRow()) sameRow = false;
+                if (sorted.get(i).getCol() != sorted.get(0).getCol()) sameCol = false;
+            }
+            if (!sameRow && !sameCol) return null;
+
+            for (int i = 1; i < sorted.size(); i++) {
+                int dr = sorted.get(i).getRow() - sorted.get(i - 1).getRow();
+                int dc = sorted.get(i).getCol() - sorted.get(i - 1).getCol();
+                if (dr + dc != 1) return null;
+            }
+
+            if (!board.canPlace(sorted)) {
+                return null;
+            }
+            board.addShip(new Ship(board.getShips().size(), sorted));
+        }
+        return board;
+    }
+
+    /** Người chơi bấm "Tái đấu". Khi cả hai đã bấm thì bắt đầu giai đoạn đặt tàu 45s cho ván mới. */
     public synchronized void requestRematch(String playerId) {
         stateOf(playerId);
         if (phase == GamePhase.CLOSED) {
             throw new GameException(GameException.Code.ROOM_CLOSED, "Đối thủ đã rời phòng hoặc offline");
         }
         if (phase != GamePhase.FINISHED) throw new GameException(GameException.Code.INVALID_STATE, "Trận chưa kết thúc");
-        
+
         if (!rematchRequests.add(playerId)) return;
         if (rematchRequests.size() == 2) {
-            beginCountdown();
+            beginSetup();
         } else {
             notifyListener(l -> l.onRematchRequested(this, playerId));
         }
     }
 
-    /**
-     * Rời phòng: bấm "Về sảnh" hoặc mất kết nối.
-     */
     public synchronized void leave(String playerId) {
         if (phase == GamePhase.CLOSED || !isMember(playerId)) return;
         PlayerState leaver = stateOf(playerId);
-        if (phase == GamePhase.PLAYING) {
+        if (phase == GamePhase.PLAYING || phase == GamePhase.SETUP || phase == GamePhase.COUNTDOWN) {
             finish(opponentOf(leaver).id(), leaver.id(), GameResult.Reason.LEFT);
             notifyListener(l -> l.onPlayerLeft(this, playerId));
             close();
         } else if (phase == GamePhase.FINISHED) {
-            // Trận đã kết thúc, 1 người về sảnh -> Không gọi close() để người còn lại vẫn bấm Tái đấu được
             rematchRequests.remove(playerId);
             // Nhưng khi CẢ 2 người đều đã rời thì đóng phòng, nếu không server vẫn coi họ "đang trong trận"
             daRoiPhong.add(playerId);
@@ -211,13 +272,6 @@ public class GameRoom {
         }
     }
 
-    // ------------------------------------------------------------------ bắn
-
-    /**
-     * Xử lý một lượt bắn. Ném {@link GameException} nếu nước đi không hợp lệ (sai lượt, ô đã bắn, hết đạn...).
-     *
-     * @param target ô được chọn; bỏ qua (có thể null) với đạn rải rác
-     */
     public synchronized ShotResult fire(String playerId, MissileType type, Point target) {
         if (phase == GamePhase.CLOSED) throw new GameException(GameException.Code.ROOM_CLOSED, "Phòng đã đóng");
         if (phase != GamePhase.PLAYING) throw new GameException(GameException.Code.INVALID_STATE, "Trận không diễn ra");
@@ -256,7 +310,7 @@ public class GameRoom {
 
         shooter.incrementShots();
         if (shooter.shotsFired() % config.getMysteryEveryNShots() == 0) {
-            if (shooter.getMysteriesCollected() < 4) { // Chỉ sinh quà khi chưa đủ 4
+            if (shooter.getMysteriesCollected() < 4) {
                 result.setNewMysteryBox(board.spawnMystery(rng));
             }
         }
@@ -271,13 +325,12 @@ public class GameRoom {
             result.setNextTurnPlayerId(next);
             notifyListener(l -> l.onShotResolved(this, result));
             startTurn(next);
-        }        
+        }
         turnCounter++;
         if (dbMatchId > 0) {
             com.mycompany.battleship.server.dao.MatchDAO dao = new com.mycompany.battleship.server.dao.MatchDAO();
             int shooterId = playerId.equals(playerA.id()) ? playerAId : playerBId;
 
-            // Tọa độ tâm hiển thị (Đạn thường, Chữ thập BIG, Nguyên tử NUCLEAR đều có target; riêng RAIN thì ghi "RAIN")
             String coordStr;
             if (target != null) {
                 char rowChar = (char) ('A' + target.getRow());
@@ -286,7 +339,6 @@ public class GameRoom {
                 coordStr = "RAIN";
             }
 
-            // Gom toàn bộ các ô thực tế bị bắn trong lượt này (1 ô, 5 ô chữ thập, 13 ô nuke, hoặc 4-7 ô rain)
             com.google.gson.JsonArray affectedArr = new com.google.gson.JsonArray();
             String sunkShipType = null;
             boolean anyHit = false;
@@ -313,7 +365,6 @@ public class GameRoom {
                 cellObj.addProperty("result", cellRes);
                 affectedArr.add(cellObj);
 
-                // Cập nhật thống kê Heatmap cho từng ô bị nổ
                 dao.recordShotStats(shooterId, cellCoord, cell.isHit());
             }
 
@@ -323,13 +374,9 @@ public class GameRoom {
             dao.saveMatchTurn(dbMatchId, turnCounter, shooterId, coordStr, resType, sunkShipType, type.name(), affectedJson);
         }
 
-        // Cập nhật màn hình cho các Admin đang xem
         broadcastGodViewToSpectators();
-        
         return result;
     }
-
-    // ------------------------------------------------------------------ chat & emote
 
     public synchronized ChatMessage sendChat(String playerId, String text) {
         requireChatOpen(playerId);
@@ -353,12 +400,12 @@ public class GameRoom {
         if (phase == GamePhase.CREATED) throw new GameException(GameException.Code.INVALID_STATE, "Phòng chưa bắt đầu");
     }
 
-    // ------------------------------------------------------------------ ảnh chụp trạng thái
-
     public synchronized GameView viewFor(String playerId) {
         PlayerState me = stateOf(playerId);
         PlayerState opp = opponentOf(me);
-        if (me.board() == null) throw new GameException(GameException.Code.INVALID_STATE, "Trận chưa được khởi tạo");
+        if (me.board() == null || opp.board() == null) {
+            throw new GameException(GameException.Code.INVALID_STATE, "Trận chưa được khởi tạo");
+        }
 
         Board mine = me.board();
         Board theirs = opp.board();
@@ -378,23 +425,59 @@ public class GameRoom {
         for (Ship s : theirs.getShips()) if (s.isSunk()) sunk.add(s.getCells());
 
         int secondsLeft = 0;
-        if (phase == GamePhase.PLAYING) {
+        if (phase == GamePhase.PLAYING || phase == GamePhase.SETUP) {
             secondsLeft = (int) Math.max(0, (turnDeadlineMillis - System.currentTimeMillis() + 999) / 1000);
         }
         return new GameView(phase, me.id(), opp.id(), currentTurnId, secondsLeft,
                 turnDeadlineMillis, own, enemy, sunk, me.inventorySnapshot());
     }
 
-    // ------------------------------------------------------------------ nội bộ: đếm ngược & lượt
+    // ------------------------------------------------------------------ nội bộ: đặt tàu 45s, đếm ngược & lượt
+
+    private void beginSetup() {
+        cancelPending();
+        rematchRequests.clear();
+        // Khởi tạo bàn cờ trống để Admin vào xem thấy bàn trống và cập nhật từng tàu khi người chơi đặt
+        playerA.resetForNewMatch(new Board());
+        playerB.resetForNewMatch(new Board());
+        currentTurnId = null;
+        phase = GamePhase.SETUP;
+
+        long myEpoch = ++epoch;
+        long millis = config.getSetupSeconds() * 1000L;
+        turnDeadlineMillis = System.currentTimeMillis() + millis;
+        long deadline = turnDeadlineMillis;
+
+        notifyListener(l -> l.onSetupStarted(this, config.getSetupSeconds(), deadline));
+        broadcastGodViewToSpectators();
+        schedule(() -> onSetupTimeout(myEpoch), millis);
+    }
+
+    private synchronized void onSetupTimeout(long myEpoch) {
+        if (phase != GamePhase.SETUP || epoch != myEpoch) return;
+        beginCountdown();
+    }
 
     private void beginCountdown() {
+        cancelPending();
         rematchRequests.clear();
         daRoiPhong.clear();
         playerA.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
         playerB.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
+
+        // Nếu hết 45s mà người chơi chưa đặt đủ 5 tàu, hệ thống tự động sinh ngẫu nhiên
+        int requiredShips = config.getShipLengths().length;
+        if (playerA.board() == null || playerA.board().getShips().size() != requiredShips) {
+            playerA.setBoard(BoardGenerator.generate(config.getShipLengths(), rng));
+        }
+        if (playerB.board() == null || playerB.board().getShips().size() != requiredShips) {
+            playerB.setBoard(BoardGenerator.generate(config.getShipLengths(), rng));
+        }
+
         currentTurnId = null;
         phase = GamePhase.COUNTDOWN;
         notifyListener(l -> l.onMatchPrepared(this));
+        broadcastGodViewToSpectators();
         countdownStep(config.getCountdownSeconds(), ++epoch);
     }
 
@@ -415,7 +498,6 @@ public class GameRoom {
         phase = GamePhase.PLAYING;
         matchStartMillis = System.currentTimeMillis();
 
-        // Lưu vị trí tàu 2 người chơi vào DB match_boards
         if (dbMatchId > 0) {
             com.mycompany.battleship.server.dao.MatchDAO dao = new com.mycompany.battleship.server.dao.MatchDAO();
             dao.saveMatchBoard(dbMatchId, playerAId, gson.toJson(playerA.board().getShips()));
@@ -444,15 +526,15 @@ public class GameRoom {
     }
 
     private void finish(String winnerId, String loserId, GameResult.Reason reason) {
-    cancelPending();
-    epoch++;
-    phase = GamePhase.FINISHED;
-    currentTurnId = null;
-    GameResult result = new GameResult(roomId, winnerId, loserId, reason, matchStartMillis, System.currentTimeMillis());
-    this.lastResult = result;
-    broadcastGodViewToSpectators(); 
-    notifyListener(l -> l.onGameOver(this, result));
-}
+        cancelPending();
+        epoch++;
+        phase = GamePhase.FINISHED;
+        currentTurnId = null;
+        GameResult result = new GameResult(roomId, winnerId, loserId, reason, matchStartMillis, System.currentTimeMillis());
+        this.lastResult = result;
+        broadcastGodViewToSpectators();
+        notifyListener(l -> l.onGameOver(this, result));
+    }
 
     private void close() {
         if (phase == GamePhase.CLOSED) return;
@@ -466,8 +548,6 @@ public class GameRoom {
             LOG.log(Level.WARNING, "onClosed lỗi", ex);
         }
     }
-
-    // ------------------------------------------------------------------ nội bộ: đạn & thưởng
 
     private List<Point> blastCells(MissileType type, Point center) {
         List<Point> cells = new ArrayList<>();
@@ -486,7 +566,7 @@ public class GameRoom {
     }
 
     private void grantReward(PlayerState shooter, ShotResult result) {
-        if (shooter.getMysteriesCollected() >= 4) return; // Chặn cứng nếu đã nhận đủ 4
+        if (shooter.getMysteriesCollected() >= 4) return;
 
         if (!shooter.hasBonusSpace()) {
             result.incrementRewardsLost();
@@ -500,17 +580,13 @@ public class GameRoom {
         shooter.addBonus(reward);
         result.addReward(reward);
 
-        shooter.incrementMysteriesCollected(); // Đánh dấu đã nhận 1 hộp
+        shooter.incrementMysteriesCollected();
 
-        // Nếu vừa nhận đủ hộp thứ 4, xóa các hộp còn sót trên bàn cờ địch
         if (shooter.getMysteriesCollected() == 4) {
             PlayerState victim = opponentOf(shooter);
-            // Tùy vào Board.java của bạn, hãy gọi hàm xóa ở đây. Ví dụ:
-            victim.board().clearAllMysteries(); 
+            victim.board().clearAllMysteries();
         }
     }
-
-    // ------------------------------------------------------------------ nội bộ: tiện ích
 
     private PlayerState stateOf(String playerId) {
         if (playerA.id().equals(playerId)) return playerA;

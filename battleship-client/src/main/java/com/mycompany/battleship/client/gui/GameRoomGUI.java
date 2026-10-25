@@ -26,6 +26,9 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -40,9 +43,11 @@ import javafx.util.Duration;
 
 import java.io.File;
 import java.net.URL;
-import java.util.EnumMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -61,6 +66,23 @@ public class GameRoomGUI extends Application {
     // được phóng to/thu nhỏ theo tỷ lệ (giữ nguyên hình dạng) thay vì để lại khoảng trắng.
     private static final double KHUNG_RONG = 1000;
     private static final double KHUNG_CAO = 680;
+    private static final int[] SETUP_SHIP_LENGTHS = {5, 4, 3, 3, 2};
+    private static final String[] SETUP_SHIP_NAMES = {
+        "Tàu Sân Bay (5 ô)",
+        "Thiết Giáp Hạm (4 ô)",
+        "Tàu Tuần Dương (3 ô)",
+        "Tàu Ngầm (3 ô)",
+        "Tàu Khu Trục (2 ô)"
+    };
+    private static final String[] SETUP_SHIP_STYLES = {
+        SHIP_SIZE_5, SHIP_SIZE_4, SHIP_SIZE_3_A, SHIP_SIZE_3_B, SHIP_SIZE_2
+    };
+    private static final String[] DIRECTION_LABELS = {
+        "🔄 Hướng: Sang phải ➔",
+        "🔄 Hướng: Xuống dưới ⬇",
+        "🔄 Hướng: Sang trái ⬅",
+        "🔄 Hướng: Lên trên ⬆"
+    };
 
     private String player1Name = "Người chơi 1";
     private String player2Name = "Đối thủ";
@@ -83,6 +105,7 @@ public class GameRoomGUI extends Application {
     private Label turnIndicatorLabel;
     private Label countdownLabel;
     private ToggleGroup weaponGroup;
+    private HBox inventoryBar;
     private StackPane countdownOverlay;
     private StackPane resultOverlay;
     private Label resultIcon;
@@ -91,16 +114,53 @@ public class GameRoomGUI extends Application {
     private Button lobbyBtn;
     private Button rematchBtn;
 
-//    private final Map<String, Label> weaponBadges = new EnumMap<>(MissileType.class.getName().getClass().isEnum() ? null : null); // fallback
-    private final Map<String, Label> badgeMap = new java.util.HashMap<>();
-    private final Map<String, ToggleButton> buttonMap = new java.util.HashMap<>();
+    private final Map<String, Label> badgeMap = new HashMap<>();
+    private final Map<String, ToggleButton> buttonMap = new HashMap<>();
 
+    private boolean isSetupPhase = false;
+    private boolean isSetupLocked = false;
+    // 0 = Sang phải (➔), 1 = Xuống dưới (⬇), 2 = Sang trái (⬅), 3 = Lên trên (⬆)
+    private int placementDirection = 0;
+    private int selectedShipIndex = 0;
+    private int lastHoverRow = -1;
+    private int lastHoverCol = -1;
+
+    private final List<List<Point>> placedShips = new ArrayList<>();
+    private final int[][] setupShipGrid = new int[GRID_SIZE][GRID_SIZE];
+    private final HBox[] shipSelectorCards = new HBox[5];
+    private final Label[] shipStatusBadges = new Label[5];
+
+    private StackPane rightBoardContainer;
+    private VBox enemyBoardPanel;
+    private VBox setupControlPanel;
+    private Button btnRotateShip;
+    private Button btnRandomShips;
+    private Button btnClearShips;
+    private Button btnReadySetup;
+    private Label lblSetupHint;
+
+    private BiConsumer<List<List<Map<String, Integer>>>, Boolean> onShipsPlaced;
     private BiConsumer<Integer, Integer> onAttackCellClicked;
     private Consumer<String> onWeaponSelected;
     private Runnable onExitGameClicked;
     private Runnable onRematchClicked;
 
     private boolean isMyTurn = false;
+
+    public GameRoomGUI() {
+        for (int i = 0; i < 5; i++) {
+            placedShips.add(null);
+        }
+        resetSetupGridArray();
+    }
+
+    private void resetSetupGridArray() {
+        for (int r = 0; r < GRID_SIZE; r++) {
+            for (int c = 0; c < GRID_SIZE; c++) {
+                setupShipGrid[r][c] = -1;
+            }
+        }
+    }
 
     private void playSound(String fileName) {
         if (SplashGUI.tatTieng) return; // đang tắt tiếng thì không phát hiệu ứng
@@ -125,9 +185,12 @@ public class GameRoomGUI extends Application {
         this.player2Score = p2Score;
     }
 
+    public void setOnShipsPlaced(BiConsumer<List<List<Map<String, Integer>>>, Boolean> listener) {
+        this.onShipsPlaced = listener;
+    }
+
     @Override
     public void start(Stage primaryStage) {
-        
         LobbyGUI.dongSanhChoHienTai();
         
         
@@ -161,6 +224,14 @@ public class GameRoomGUI extends Application {
         primaryStage.setMinWidth(760);
         primaryStage.setMinHeight(560);
 
+        // Dùng EventFilter để bắt phím R mọi lúc không bị nút bấm chiếm Focus
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
+            if (isSetupPhase && !isSetupLocked && e.getCode() == KeyCode.R) {
+                handleRotateAction();
+                e.consume();
+            }
+        });
+
         primaryStage.setTitle("Battleship - " + player1Name + " vs " + player2Name);
         primaryStage.setScene(scene);
         primaryStage.setOnCloseRequest(e -> {
@@ -184,7 +255,8 @@ public class GameRoomGUI extends Application {
         layout.getStyleClass().add("game-root");
         layout.setTop(createTopBar());
         layout.setCenter(createBoardsArea());
-        layout.setBottom(createInventoryBar());
+        inventoryBar = createInventoryBar();
+        layout.setBottom(inventoryBar);
         return layout;
     }
 
@@ -344,6 +416,16 @@ public class GameRoomGUI extends Application {
         // Không kéo dãn 2 khung bàn cờ theo chiều cao vùng giữa -> khung ôm vừa lưới 10x10
         boards.setFillHeight(false);
         boards.getChildren().addAll(createFleetPanel(), createEnemyPanel());
+
+        VBox fleetPanel = createFleetPanel();
+        enemyBoardPanel = createEnemyPanel();
+        setupControlPanel = createSetupControlPanel();
+
+        rightBoardContainer = new StackPane(enemyBoardPanel, setupControlPanel);
+        setupControlPanel.setVisible(false);
+        setupControlPanel.setManaged(false);
+
+        boards.getChildren().addAll(fleetPanel, rightBoardContainer);
         return boards;
     }
 
@@ -355,7 +437,7 @@ public class GameRoomGUI extends Application {
         header.getStyleClass().addAll("board-header", "board-header-fleet");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
-        GridPane grid = buildGrid(fleetCells, false);
+        GridPane grid = buildFleetGrid();
         panel.getChildren().addAll(header, grid);
         return panel;
     }
@@ -371,6 +453,555 @@ public class GameRoomGUI extends Application {
         GridPane grid = buildGrid(enemyCells, true);
         panel.getChildren().addAll(header, grid);
         return panel;
+    }
+
+    private VBox createSetupControlPanel() {
+        VBox panel = new VBox();
+        panel.getStyleClass().add("board-panel");
+        panel.setPrefWidth(407);
+        panel.setMinWidth(407);
+        panel.setMaxWidth(407);
+
+        Label header = new Label("Bố trí Hạm đội (Cách nhau ít nhất 1 ô)");
+        header.getStyleClass().addAll("board-header", "board-header-fleet");
+        header.setMaxWidth(Double.MAX_VALUE);
+        header.setAlignment(Pos.CENTER);
+
+        VBox body = new VBox(10);
+        body.setPadding(new Insets(14, 16, 16, 16));
+        body.setAlignment(Pos.TOP_CENTER);
+
+        lblSetupHint = new Label("Click trái để đặt/nhấc tàu. Bấm phím R hoặc Click phải để xoay 4 hướng (hoặc xoay trực tiếp tàu đang trỏ).");
+        lblSetupHint.setWrapText(true);
+        lblSetupHint.setStyle("-fx-text-fill: #455A64; -fx-font-size: 12px;");
+
+        VBox shipListBox = new VBox(7);
+        for (int i = 0; i < 5; i++) {
+            final int shipIdx = i;
+            HBox card = createShipSelectorCard(shipIdx);
+            shipSelectorCards[i] = card;
+            shipListBox.getChildren().add(card);
+        }
+
+        btnRotateShip = new Button(DIRECTION_LABELS[0]);
+        btnRotateShip.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        btnRotateShip.setOnAction(e -> toggleShipOrientation());
+
+        btnRandomShips = new Button("🎲 Ngẫu nhiên");
+        btnRandomShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        btnRandomShips.setOnAction(e -> randomizeSetupShips());
+
+        btnClearShips = new Button("🗑 Xóa bàn");
+        btnClearShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        btnClearShips.setOnAction(e -> clearAllSetupShips());
+
+        HBox toolRow = new HBox(8, btnRotateShip, btnRandomShips, btnClearShips);
+        toolRow.setAlignment(Pos.CENTER);
+
+        btnReadySetup = new Button("✔ Sẵn sàng chiến đấu");
+        btnReadySetup.getStyleClass().addAll("dialog-button", "dialog-button-primary");
+        btnReadySetup.setMaxWidth(Double.MAX_VALUE);
+        btnReadySetup.setDisable(true);
+        btnReadySetup.setOnAction(e -> lockAndSubmitShips());
+
+        body.getChildren().addAll(lblSetupHint, shipListBox, toolRow, btnReadySetup);
+        panel.getChildren().addAll(header, body);
+        return panel;
+    }
+
+    private HBox createShipSelectorCard(int idx) {
+        HBox card = new HBox(10);
+        card.getStyleClass().add("setup-ship-item");
+        card.setAlignment(Pos.CENTER_LEFT);
+
+        HBox previewPill = new HBox(2);
+        previewPill.setAlignment(Pos.CENTER_LEFT);
+        int len = SETUP_SHIP_LENGTHS[idx];
+        for (int k = 0; k < len; k++) {
+            Region seg = new Region();
+            seg.setPrefSize(16, 16);
+            seg.setMinSize(16, 16);
+            seg.setMaxSize(16, 16);
+            seg.getStyleClass().addAll("cell-ship", SETUP_SHIP_STYLES[idx]);
+            seg.setStyle("-fx-background-radius: 5;");
+            previewPill.getChildren().add(seg);
+        }
+        previewPill.setMinWidth(95);
+
+        Label nameLbl = new Label(SETUP_SHIP_NAMES[idx]);
+        nameLbl.setStyle("-fx-text-fill: #37474F; -fx-font-weight: 700; -fx-font-size: 12px;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Label statusBadge = new Label("Chưa đặt");
+        statusBadge.getStyleClass().addAll("setup-status-badge", "setup-status-pending");
+        shipStatusBadges[idx] = statusBadge;
+
+        card.getChildren().addAll(previewPill, nameLbl, spacer, statusBadge);
+        card.setOnMouseClicked(e -> {
+            if (!isSetupPhase || isSetupLocked) return;
+            if (placedShips.get(idx) != null) {
+                removePlacedShip(idx);
+                sendShipsToServer(false);
+            }
+            selectShipToPlace(idx);
+        });
+        return card;
+    }
+
+    public void startSetupPhase(int seconds) {
+        this.isSetupPhase = true;
+        this.isSetupLocked = false;
+        this.isMyTurn = false;
+        this.placementDirection = 0;
+        hideCountdown();
+        hideResultPopup();
+
+        enemyBoardPanel.setVisible(false);
+        enemyBoardPanel.setManaged(false);
+        setupControlPanel.setVisible(true);
+        setupControlPanel.setManaged(true);
+        if (inventoryBar != null) {
+            inventoryBar.setDisable(true);
+        }
+
+        btnRotateShip.setDisable(false);
+        btnRotateShip.setText(DIRECTION_LABELS[0]);
+        btnRandomShips.setDisable(false);
+        btnClearShips.setDisable(false);
+        btnReadySetup.setText("✔ Sẵn sàng chiến đấu");
+        lblSetupHint.setText("Click trái để đặt/nhấc tàu. Bấm phím R hoặc Click phải để xoay 4 hướng (hoặc xoay trực tiếp tàu đang trỏ).");
+
+        turnIndicatorLabel.getStyleClass().removeAll("turn-indicator-active", "turn-indicator-waiting");
+        turnIndicatorLabel.setText("Đặt tàu (" + seconds + "s)");
+        turnIndicatorLabel.getStyleClass().add("turn-indicator-active");
+
+        clearAllSetupShips();
+        startTurnTimer(seconds);
+    }
+
+    public void onOpponentReady() {
+        if (isSetupPhase) {
+            if (isSetupLocked) {
+                turnIndicatorLabel.setText("Đối thủ đã sẵn sàng!");
+            } else {
+                lblSetupHint.setText("⚡ Đối thủ đã xếp tàu xong! Hãy hoàn tất hạm đội và bấm Sẵn sàng.");
+            }
+        }
+    }
+
+    private void exitSetupPhase() {
+        if (!isSetupPhase) return;
+        isSetupPhase = false;
+        isSetupLocked = true;
+        clearSetupHoverPreview();
+
+        setupControlPanel.setVisible(false);
+        setupControlPanel.setManaged(false);
+        enemyBoardPanel.setVisible(true);
+        enemyBoardPanel.setManaged(true);
+        if (inventoryBar != null) {
+            inventoryBar.setDisable(false);
+        }
+    }
+
+    private GridPane buildFleetGrid() {
+        GridPane grid = new GridPane();
+        grid.getStyleClass().add("grid-board");
+        grid.setHgap(3);
+        grid.setVgap(3);
+        grid.setAlignment(Pos.CENTER);
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                final int r = row;
+                final int c = col;
+                StackPane cell = createCell(r, c, false);
+                cell.setOnMouseEntered(e -> {
+                    lastHoverRow = r;
+                    lastHoverCol = c;
+                    if (isSetupPhase && !isSetupLocked) {
+                        showSetupHoverPreview(r, c);
+                    }
+                });
+                cell.setOnMouseExited(e -> {
+                    lastHoverRow = -1;
+                    lastHoverCol = -1;
+                    if (isSetupPhase && !isSetupLocked) {
+                        clearSetupHoverPreview();
+                    }
+                });
+                cell.setOnMouseClicked(e -> {
+                    if (!isSetupPhase || isSetupLocked) return;
+                    if (e.getButton() == MouseButton.SECONDARY) {
+                        handleRotateAction();
+                    } else if (e.getButton() == MouseButton.PRIMARY) {
+                        handleFleetSetupClick(r, c);
+                    }
+                });
+                fleetCells[row][col] = cell;
+                grid.add(cell, col, row);
+            }
+        }
+        return grid;
+    }
+
+    /**
+     * Xử lý khi bấm phím R hoặc Click chuột phải:
+     * - Nếu chuột đang trỏ vào 1 tàu đã đặt trên bàn -> xoay trực tiếp tàu đó quanh ô đang trỏ.
+     * - Ngược lại -> đổi hướng đặt tàu qua 4 hướng (Phải -> Xuống -> Trái -> Lên).
+     */
+    private void handleRotateAction() {
+        if (!isSetupPhase || isSetupLocked) return;
+
+        if (lastHoverRow >= 0 && lastHoverCol >= 0) {
+            int shipIdx = setupShipGrid[lastHoverRow][lastHoverCol];
+            if (shipIdx != -1 && placedShips.get(shipIdx) != null) {
+                if (tryRotatePlacedShipInPlace(shipIdx, lastHoverRow, lastHoverCol)) {
+                    playSound("fire_normal.mp3");
+                    refreshSetupBoardView();
+                    refreshSetupShipCards();
+                    sendShipsToServer(false);
+                    return;
+                } else {
+                    playSound("miss.mp3");
+                }
+            }
+        }
+        toggleShipOrientation();
+    }
+
+    /** Thử xoay một con tàu đã đặt quanh tâm (pivotRow, pivotCol) hoặc đầu tàu. */
+    private boolean tryRotatePlacedShipInPlace(int shipIdx, int pivotRow, int pivotCol) {
+        List<Point> currentCells = placedShips.get(shipIdx);
+        if (currentCells == null || currentCells.size() <= 1) return false;
+
+        int len = currentCells.size();
+        boolean currentlyHorizontal = (currentCells.get(0).getRow() == currentCells.get(1).getRow());
+
+        // Thử các hướng vuông góc trước, sau đó thử các hướng còn lại quanh ô chuột đang trỏ
+        int[] tryDirs = currentlyHorizontal ? new int[]{1, 3, 2, 0} : new int[]{0, 2, 1, 3};
+        for (int dir : tryDirs) {
+            List<Point> candidate = buildCandidateCells(pivotRow, pivotCol, len, dir);
+            if (!candidate.equals(currentCells) && canPlaceShipOnSetupGrid(candidate, shipIdx)) {
+                // Xóa vị trí cũ và cập nhật vị trí mới
+                for (Point p : currentCells) {
+                    if (setupShipGrid[p.getRow()][p.getCol()] == shipIdx) {
+                        setupShipGrid[p.getRow()][p.getCol()] = -1;
+                    }
+                }
+                placeShipOnSetupGrid(shipIdx, candidate);
+                placementDirection = dir;
+                btnRotateShip.setText(DIRECTION_LABELS[placementDirection]);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void toggleShipOrientation() {
+        if (!isSetupPhase || isSetupLocked) return;
+        placementDirection = (placementDirection + 1) % 4;
+        btnRotateShip.setText(DIRECTION_LABELS[placementDirection]);
+        if (lastHoverRow >= 0 && lastHoverCol >= 0) {
+            showSetupHoverPreview(lastHoverRow, lastHoverCol);
+        }
+    }
+
+    private void selectShipToPlace(int idx) {
+        selectedShipIndex = idx;
+        refreshSetupShipCards();
+    }
+
+    private void refreshSetupShipCards() {
+        int placedCount = 0;
+        for (int i = 0; i < 5; i++) {
+            HBox card = shipSelectorCards[i];
+            Label badge = shipStatusBadges[i];
+            card.getStyleClass().removeAll("setup-ship-item-selected", "setup-ship-item-placed");
+            badge.getStyleClass().removeAll("setup-status-placed", "setup-status-pending");
+
+            if (placedShips.get(i) != null) {
+                placedCount++;
+                card.getStyleClass().add("setup-ship-item-placed");
+                badge.setText("Đã đặt ✓");
+                badge.getStyleClass().add("setup-status-placed");
+            } else {
+                badge.setText("Chưa đặt");
+                badge.getStyleClass().add("setup-status-pending");
+            }
+
+            if (i == selectedShipIndex && !isSetupLocked) {
+                card.getStyleClass().add("setup-ship-item-selected");
+            }
+        }
+        if (!isSetupLocked) {
+            btnReadySetup.setDisable(placedCount < 5);
+        }
+    }
+
+    private void handleFleetSetupClick(int row, int col) {
+        int existingShipIdx = setupShipGrid[row][col];
+        if (existingShipIdx != -1) {
+            removePlacedShip(existingShipIdx);
+            selectShipToPlace(existingShipIdx);
+            showSetupHoverPreview(row, col);
+            sendShipsToServer(false);
+            return;
+        }
+
+        if (selectedShipIndex < 0 || selectedShipIndex >= 5 || placedShips.get(selectedShipIndex) != null) {
+            selectedShipIndex = findNextUnplacedShipIndex();
+            if (selectedShipIndex == -1) return;
+        }
+
+        int len = SETUP_SHIP_LENGTHS[selectedShipIndex];
+        List<Point> candidate = buildCandidateCells(row, col, len, placementDirection);
+        if (canPlaceShipOnSetupGrid(candidate, selectedShipIndex)) {
+            placeShipOnSetupGrid(selectedShipIndex, candidate);
+            playSound("fire_normal.mp3");
+            int nextIdx = findNextUnplacedShipIndex();
+            selectedShipIndex = (nextIdx != -1) ? nextIdx : selectedShipIndex;
+            refreshSetupBoardView();
+            refreshSetupShipCards();
+
+            // Gửi ngay trạng thái tàu hiện tại lên Server để Admin xem trực tiếp (real-time)
+            sendShipsToServer(false);
+        } else {
+            playSound("miss.mp3");
+        }
+    }
+
+    private int findNextUnplacedShipIndex() {
+        for (int i = 0; i < 5; i++) {
+            if (placedShips.get(i) == null) return i;
+        }
+        return -1;
+    }
+
+    private boolean isAllShipsPlaced() {
+        for (int i = 0; i < 5; i++) {
+            if (placedShips.get(i) == null) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Tạo danh sách các ô của tàu theo 4 hướng:
+     * dir = 0: Sang phải (col + k)
+     * dir = 1: Xuống dưới (row + k)
+     * dir = 2: Sang trái (col - k)
+     * dir = 3: Lên trên (row - k)
+     */
+    private List<Point> buildCandidateCells(int startRow, int startCol, int len, int dir) {
+        List<Point> cells = new ArrayList<>(len);
+        for (int k = 0; k < len; k++) {
+            int r = startRow;
+            int c = startCol;
+            if (dir == 0) c = startCol + k;
+            else if (dir == 1) r = startRow + k;
+            else if (dir == 2) c = startCol - k;
+            else if (dir == 3) r = startRow - k;
+            cells.add(new Point(r, c));
+        }
+        // Sắp xếp lại từ trái sang phải / từ trên xuống dưới để vẽ đầu tàu và đuôi tàu chuẩn xác
+        cells.sort((a, b) -> (a.getRow() == b.getRow())
+                ? Integer.compare(a.getCol(), b.getCol())
+                : Integer.compare(a.getRow(), b.getRow()));
+        return cells;
+    }
+
+    private boolean canPlaceShipOnSetupGrid(List<Point> cells, int ignoreShipIdx) {
+        for (Point p : cells) {
+            int r = p.getRow();
+            int c = p.getCol();
+            if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) return false;
+
+            for (int dr = -1; dr <= 1; dr++) {
+                for (int dc = -1; dc <= 1; dc++) {
+                    int nr = r + dr;
+                    int nc = c + dc;
+                    if (nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE) {
+                        int occupant = setupShipGrid[nr][nc];
+                        if (occupant != -1 && occupant != ignoreShipIdx) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private void placeShipOnSetupGrid(int shipIdx, List<Point> cells) {
+        placedShips.set(shipIdx, new ArrayList<>(cells));
+        for (Point p : cells) {
+            setupShipGrid[p.getRow()][p.getCol()] = shipIdx;
+        }
+    }
+
+    private void removePlacedShip(int shipIdx) {
+        List<Point> cells = placedShips.get(shipIdx);
+        if (cells != null) {
+            for (Point p : cells) {
+                if (setupShipGrid[p.getRow()][p.getCol()] == shipIdx) {
+                    setupShipGrid[p.getRow()][p.getCol()] = -1;
+                }
+            }
+            placedShips.set(shipIdx, null);
+        }
+        refreshSetupBoardView();
+        refreshSetupShipCards();
+    }
+
+    private void clearAllSetupShips() {
+        if (!isSetupPhase || isSetupLocked) return;
+        for (int i = 0; i < 5; i++) {
+            placedShips.set(i, null);
+        }
+        resetSetupGridArray();
+        selectedShipIndex = 0;
+        refreshSetupBoardView();
+        refreshSetupShipCards();
+        sendShipsToServer(false);
+    }
+
+    private void randomizeSetupShips() {
+        if (!isSetupPhase || isSetupLocked) return;
+        Random rng = new Random();
+        while (true) {
+            for (int i = 0; i < 5; i++) {
+                placedShips.set(i, null);
+            }
+            resetSetupGridArray();
+
+            boolean allPlaced = true;
+            for (int i = 0; i < 5; i++) {
+                int len = SETUP_SHIP_LENGTHS[i];
+                boolean placed = false;
+                for (int attempt = 0; attempt < 200 && !placed; attempt++) {
+                    int dir = rng.nextBoolean() ? 0 : 1;
+                    int r = rng.nextInt(dir == 0 ? GRID_SIZE : GRID_SIZE - len + 1);
+                    int c = rng.nextInt(dir == 0 ? GRID_SIZE - len + 1 : GRID_SIZE);
+                    List<Point> candidate = buildCandidateCells(r, c, len, dir);
+                    if (canPlaceShipOnSetupGrid(candidate, i)) {
+                        placeShipOnSetupGrid(i, candidate);
+                        placed = true;
+                    }
+                }
+                if (!placed) {
+                    allPlaced = false;
+                    break;
+                }
+            }
+            if (allPlaced) break;
+        }
+
+        selectedShipIndex = 0;
+        refreshSetupBoardView();
+        refreshSetupShipCards();
+        sendShipsToServer(false);
+    }
+
+    private void lockAndSubmitShips() {
+        if (!isSetupPhase || isSetupLocked || !isAllShipsPlaced()) return;
+        isSetupLocked = true;
+        clearSetupHoverPreview();
+
+        btnRotateShip.setDisable(true);
+        btnRandomShips.setDisable(true);
+        btnClearShips.setDisable(true);
+        btnReadySetup.setDisable(true);
+        btnReadySetup.setText("⏳ Đang chờ đối thủ...");
+        turnIndicatorLabel.setText("Đã sẵn sàng! Chờ đối thủ...");
+        refreshSetupShipCards();
+
+        sendShipsToServer(true);
+    }
+
+    /** Gửi toàn bộ các tàu đang có trên bàn cờ (kể cả khi mới đặt 1..4 tàu) để Admin xem real-time. */
+    private void sendShipsToServer(boolean isReady) {
+        if (onShipsPlaced == null) return;
+        List<List<Map<String, Integer>>> payloadShips = new ArrayList<>();
+        for (List<Point> ship : placedShips) {
+            if (ship == null || ship.isEmpty()) continue;
+            List<Map<String, Integer>> shipCoords = new ArrayList<>();
+            for (Point p : ship) {
+                Map<String, Integer> pt = new HashMap<>();
+                pt.put("row", p.getRow());
+                pt.put("col", p.getCol());
+                shipCoords.add(pt);
+            }
+            payloadShips.add(shipCoords);
+        }
+        onShipsPlaced.accept(payloadShips, isReady);
+    }
+
+    private void refreshSetupBoardView() {
+        for (int r = 0; r < GRID_SIZE; r++) {
+            for (int c = 0; c < GRID_SIZE; c++) {
+                setFleetCellState(r, c, "empty", null);
+            }
+        }
+
+        for (int i = 0; i < 5; i++) {
+            List<Point> cells = placedShips.get(i);
+            if (cells == null || cells.isEmpty()) continue;
+
+            int len = cells.size();
+            String shipType = SETUP_SHIP_STYLES[i];
+            boolean isHoriz = (len > 1 && cells.get(0).getRow() == cells.get(1).getRow());
+
+            for (int k = 0; k < len; k++) {
+                Point p = cells.get(k);
+                String shapeClass;
+                if (len == 1) {
+                    shapeClass = null;
+                } else if (k == 0) {
+                    shapeClass = isHoriz ? "ship-horizontal-head" : "ship-vertical-head";
+                } else if (k == len - 1) {
+                    shapeClass = isHoriz ? "ship-horizontal-tail" : "ship-vertical-tail";
+                } else {
+                    shapeClass = isHoriz ? "ship-horizontal-body" : "ship-vertical-body";
+                }
+                setFleetCellState(p.getRow(), p.getCol(), "ship", shipType, shapeClass);
+            }
+        }
+    }
+
+    private void showSetupHoverPreview(int row, int col) {
+        clearSetupHoverPreview();
+        if (!isSetupPhase || isSetupLocked) return;
+
+        // Nếu đang trỏ vào tàu đã đặt thì không đè vùng preview lên tàu đó
+        if (setupShipGrid[row][col] != -1) return;
+
+        int targetIdx = selectedShipIndex;
+        if (targetIdx < 0 || targetIdx >= 5 || placedShips.get(targetIdx) != null) {
+            targetIdx = findNextUnplacedShipIndex();
+            if (targetIdx == -1) return;
+        }
+
+        int len = SETUP_SHIP_LENGTHS[targetIdx];
+        List<Point> candidate = buildCandidateCells(row, col, len, placementDirection);
+        boolean valid = canPlaceShipOnSetupGrid(candidate, targetIdx);
+        String previewClass = valid ? "cell-place-valid" : "cell-place-invalid";
+
+        for (Point p : candidate) {
+            int r = p.getRow();
+            int c = p.getCol();
+            if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) {
+                fleetCells[r][c].getStyleClass().add(previewClass);
+            }
+        }
+    }
+
+    private void clearSetupHoverPreview() {
+        for (int r = 0; r < GRID_SIZE; r++) {
+            for (int c = 0; c < GRID_SIZE; c++) {
+                fleetCells[r][c].getStyleClass().removeAll("cell-place-valid", "cell-place-invalid");
+            }
+        }
     }
 
     private GridPane buildGrid(StackPane[][] cellStore, boolean interactive) {
@@ -549,12 +1180,12 @@ public class GameRoomGUI extends Application {
     }
 
     public void showCountdown(int seconds) {
+        exitSetupPhase();
         countdownOverlay.setVisible(true);
         countdownOverlay.setManaged(true);
         countdownLabel.setText(seconds > 0 ? String.valueOf(seconds) : "Chiến đấu!");
         playPulse(countdownLabel);
 
-        // Khi đếm tới 1, hẹn 1 giây sau hiện "Chiến đấu!" rồi biến mất hoàn toàn
         if (seconds <= 1) {
             Timeline hideTimeline = new Timeline(
                     new KeyFrame(Duration.seconds(1), e -> {
@@ -614,7 +1245,7 @@ public class GameRoomGUI extends Application {
         return overlay;
     }
 
-public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLobby, Runnable onRematch) {
+    public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLobby, Runnable onRematch) {
         stopTurnTimer();
 
         if (resultOverlay.isVisible() && ("LEFT".equals(reason) || "SURRENDER".equals(reason))) {
@@ -627,7 +1258,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
 
         resultTitle.getStyleClass().removeAll("dialog-title-win", "dialog-title-lose");
 
-        // 2. Luôn hiển thị và reset lại nút "Tái đấu" về trạng thái ban đầu
         rematchBtn.setVisible(true);
         rematchBtn.setManaged(true);
         rematchBtn.setDisable(false);
@@ -670,10 +1300,12 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
         resultOverlay.setVisible(true);
         resultOverlay.setManaged(true);
     }
+
     public void hideResultPopup() {
         resultOverlay.setVisible(false);
         resultOverlay.setManaged(false);
     }
+
     public void showRematchRequestPopup(String opponentName, Runnable onAccept, Runnable onDecline) {
         javafx.application.Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
@@ -696,6 +1328,7 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             });
         });
     }
+
     public void setOnAttackCellClicked(BiConsumer<Integer, Integer> listener) {
         this.onAttackCellClicked = listener;
     }
@@ -726,8 +1359,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             cell.getChildren().add(createWaterDot());
         } else {
             cell.getStyleClass().addAll("cell-ship", shipType != null ? shipType : SHIP_SIZE_3_A);
-            
-            // Nhận diện đầu / thân / đuôi bo tròn theo CSS
             if (shapeClass != null) {
                 cell.getStyleClass().add(shapeClass);
             } else {
@@ -773,7 +1404,7 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
         cell.setStyle("");
         cell.getStyleClass().removeAll("water-cell", "cell-ship", "cell-hit",
                 SHIP_SIZE_2, SHIP_SIZE_3_A, SHIP_SIZE_3_B, SHIP_SIZE_4, SHIP_SIZE_5,
-                "cell-hover-aim", "cell-interactive");
+                "cell-hover-aim", "cell-interactive", "cell-place-valid", "cell-place-invalid");
     }
 
     private Circle createWaterDot() {
@@ -820,8 +1451,9 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
     }
 
     public void setTurnIndicator(boolean isMyTurn) {
+        exitSetupPhase();
         this.isMyTurn = isMyTurn;
-        hideCountdown(); // Đảm bảo tắt màn che mờ ngay khi vào ván
+        hideCountdown();
 
         turnIndicatorLabel.getStyleClass().removeAll("turn-indicator-active", "turn-indicator-waiting");
         khungDoiThu.getStyleClass().remove("pl-board-active");
@@ -835,7 +1467,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             turnIndicatorLabel.getStyleClass().add("turn-indicator-waiting");
         }
 
-        // Bật đếm ngược 45s cho CẢ HAI BÊN để người chờ cũng thấy thời gian trôi
         startTurnTimer(45);
     }
 
@@ -857,17 +1488,13 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
         }
     }
 
-    // ĐỒNG BỘ TOÀN BỘ BÀN CỜ VÀ ĐẠN TỪ SERVER
-
     public void renderGameView(GameView view) {
         if (view == null) return;
 
-        // =========================================================================
-        // 1. CẬP NHẬT BÀN CỜ CÁ NHÂN (HẠM ĐỘI CỦA BẠN - BÊN PHÍA MÌNH)
-        // =========================================================================
+        exitSetupPhase();
+
         char[][] own = view.ownGrid;
         if (own != null) {
-            // Bước 1.1: Vẽ các ô nước và ô đối thủ bắn trượt
             for (int r = 0; r < GRID_SIZE; r++) {
                 for (int c = 0; c < GRID_SIZE; c++) {
                     char ch = own[r][c];
@@ -887,7 +1514,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
                 }
             }
 
-            // Bước 1.2: Gom nhóm các ô liền kề để nhận diện 5 con tàu
             boolean[][] visited = new boolean[GRID_SIZE][GRID_SIZE];
             java.util.List<java.util.List<int[]>> ships = new java.util.ArrayList<>();
 
@@ -921,7 +1547,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
                 }
             }
 
-            // Bước 1.3: Sắp xếp theo chiều dài giảm dần: 5, 4, 3, 3, 2
             ships.sort((a, b) -> Integer.compare(b.size(), a.size()));
 
             boolean hasAssigned3A = false;
@@ -945,7 +1570,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
                     shipType = SHIP_SIZE_3_A;
                 }
 
-                // KIỂM TRA: Toàn bộ các ô của tàu này có đều bị bắn trúng ('X') hay không
                 boolean isShipSunk = true;
                 for (int[] p : shipCellsList) {
                     if (own[p[0]][p[1]] != 'X') {
@@ -954,7 +1578,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
                     }
                 }
 
-                // Sắp xếp toạ độ để phân định đầu tàu (head) và đuôi tàu (tail)
                 shipCellsList.sort((a, b) -> (a[0] == b[0]) ? Integer.compare(a[1], b[1]) : Integer.compare(a[0], b[0]));
                 boolean isHorizontal = (len > 1 && shipCellsList.get(0)[0] == shipCellsList.get(1)[0]);
 
@@ -975,9 +1598,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
                         shapeClass = isHorizontal ? "ship-horizontal-body" : "ship-vertical-body";
                     }
 
-                    // NẾU TÀU ĐÃ CHÌM HẾT -> HIỆN ĐẦU LÂU ("sunk")
-                    // NẾU CHỈ MỚI TRÚNG 1 VÀI Ô -> HIỆN ĐỐM LỬA ("hit")
-                    // NẾU CHƯA BỊ BẮN -> THÂN TÀU NGUYÊN VẸN ("ship")
                     String state;
                     if (ch == 'X') {
                         state = isShipSunk ? "sunk" : "hit";
@@ -990,9 +1610,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             }
         }
 
-        // =========================================================================
-        // 2. CẬP NHẬT BÀN CỜ ĐỐI THỦ (BÊN PHẢI)
-        // =========================================================================
         char[][] enemy = view.enemyGrid;
         if (enemy != null) {
             for (int r = 0; r < GRID_SIZE; r++) {
@@ -1019,9 +1636,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             }
         }
 
-        // =========================================================================
-        // 3. HIỆN ĐẦU LÂU LÊN TÀU ĐỐI THỦ KHI BỊ BẮN CHÌM HOÀN TOÀN
-        // =========================================================================
         if (view.sunkEnemyShips != null) {
             for (List<Point> shipCells : view.sunkEnemyShips) {
                 int len = shipCells.size();
@@ -1062,9 +1676,6 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             }
         }
 
-        // =========================================================================
-        // 4. CẬP NHẬT KHO ĐẠN
-        // =========================================================================
         if (view.inventory != null) {
             for (Map.Entry<MissileType, Integer> entry : view.inventory.entrySet()) {
                 String typeName = entry.getKey().name();
@@ -1085,7 +1696,7 @@ public void showResultPopup(boolean isWinner, String reason, Runnable onBackToLo
             }
         }
     }
-    // CẬP NHẬT KẾT QUẢ PHÁT BẮN
+
     public void applyShotResult(ShotResult result) {
         if (result == null) return;
 

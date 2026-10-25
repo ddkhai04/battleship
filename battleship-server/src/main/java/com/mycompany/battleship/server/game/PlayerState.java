@@ -7,19 +7,16 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Trạng thái của một người chơi trong trận: bàn tàu của mình, kho đạn, số lần bắn.
- * Kho đạn: 2 đạn chữ thập cấp đầu trận (không chiếm chỗ) + tối đa 4 đạn nhận thêm => tối đa 6 lần bắn đặc biệt.
- */
 final class PlayerState {
     private final String id;
     private final GameConfig config;
     private Board board;
+    private boolean ready;
     private int starterBig;
     private final List<MissileType> bonus = new ArrayList<>();
     private int nuclearReceived;
     private int shotsFired;
-    private int mysteriesCollected; // Thêm biến đếm số lượng hộp quà đã nhận
+    private int mysteriesCollected;
 
     PlayerState(String id, GameConfig config) {
         this.id = id;
@@ -28,21 +25,25 @@ final class PlayerState {
 
     void resetForNewMatch(Board newBoard) {
         this.board = newBoard;
+        this.ready = false;
         this.starterBig = config.getStarterBigMissiles();
         this.bonus.clear();
         this.nuclearReceived = 0;
         this.shotsFired = 0;
-        this.mysteriesCollected = 0; // Reset khi ván mới bắt đầu
+        this.mysteriesCollected = 0;
     }
 
     String id() { return id; }
     Board board() { return board; }
+    void setBoard(Board board) { this.board = board; }
+    boolean isReady() { return ready; }
+    void setReady(boolean ready) { this.ready = ready; }
+
     int shotsFired() { return shotsFired; }
     void incrementShots() { shotsFired++; }
     int nuclearReceived() { return nuclearReceived; }
     int bonusCount() { return bonus.size(); }
-    
-    // Hàm truy xuất và tăng số lượng quà đã nhận
+
     int getMysteriesCollected() { return mysteriesCollected; }
     void incrementMysteriesCollected() { mysteriesCollected++; }
 
@@ -52,7 +53,6 @@ final class PlayerState {
         return bonus.contains(t);
     }
 
-    /** Dùng đạn nhận thêm trước để giải phóng chỗ trong kho, sau đó mới dùng đạn cấp đầu trận. */
     void consume(MissileType t) {
         if (t == MissileType.SIMPLE) return;
         if (bonus.remove(t)) return;

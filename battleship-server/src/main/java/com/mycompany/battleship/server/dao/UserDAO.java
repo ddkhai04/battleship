@@ -137,7 +137,7 @@ public class UserDAO {
 
     public List<UserDTO> getLobbyUsers() {
         List<UserDTO> list = new ArrayList<>();
-        String sql = "SELECT id, nickname, status, score, wins, losses FROM users ORDER BY FIELD(status, 'ONLINE', 'IN_GAME', 'OFFLINE'), score DESC";
+        String sql = "SELECT id, nickname, status, score, wins, losses FROM users WHERE role = 'USER' ORDER BY FIELD(status, 'ONLINE', 'IN_GAME', 'OFFLINE'), score DESC";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -150,6 +150,7 @@ public class UserDAO {
         }
         return list;
     }
+    
     public List<User> getAllUsers() {
         List<User> list = new ArrayList<>();
         String sql = "SELECT * FROM users ORDER BY id ASC";
@@ -182,9 +183,10 @@ public class UserDAO {
         }
         return list;
     }
+    
     public List<UserDTO> getLeaderboard(int limit) {
         List<UserDTO> list = new ArrayList<>();
-        String sql = "SELECT id, nickname, status, score, wins, losses FROM users ORDER BY score DESC, wins DESC LIMIT ?";
+        String sql = "SELECT id, nickname, status, score, wins, losses FROM users WHERE role = 'USER' ORDER BY score DESC, wins DESC LIMIT ?";
         try (Connection conn = DBContext.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, limit);
