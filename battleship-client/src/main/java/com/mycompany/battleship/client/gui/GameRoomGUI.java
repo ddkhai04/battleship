@@ -77,11 +77,12 @@ public class GameRoomGUI extends Application {
     private static final String[] SETUP_SHIP_STYLES = {
         SHIP_SIZE_5, SHIP_SIZE_4, SHIP_SIZE_3_A, SHIP_SIZE_3_B, SHIP_SIZE_2
     };
+    private static final String SETUP_HINT = "Click: đặt/nhấc tàu  •  R / chuột phải: xoay  •  Các tàu cách nhau ≥ 1 ô";
     private static final String[] DIRECTION_LABELS = {
-        "🔄 Hướng: Sang phải ➔",
-        "🔄 Hướng: Xuống dưới ⬇",
-        "🔄 Hướng: Sang trái ⬅",
-        "🔄 Hướng: Lên trên ⬆"
+        "Hướng đặt: Sang phải  →",
+        "Hướng đặt: Xuống dưới  ↓",
+        "Hướng đặt: Sang trái  ←",
+        "Hướng đặt: Lên trên  ↑"
     };
 
     private String player1Name = "Người chơi 1";
@@ -163,6 +164,7 @@ public class GameRoomGUI extends Application {
     }
 
     private void playSound(String fileName) {
+        if (SplashGUI.tatTieng) return; // đang tắt tiếng thì không phát hiệu ứng
         try {
             URL audioUrl = getClass().getResource("/" + fileName);
             if (audioUrl != null) {
@@ -296,7 +298,17 @@ public class GameRoomGUI extends Application {
             });
         });
 
-        HBox rightGroup = new HBox(20, player2Box, exitBtn);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "pi-mute" : "pi-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("pl-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("pi-volume", "pi-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "pi-mute" : "pi-volume");
+        });
+
+        HBox rightGroup = new HBox(20, player2Box, btnAmThanh, exitBtn);
         rightGroup.setPrefWidth(280);
         rightGroup.setAlignment(Pos.CENTER_RIGHT);
 
@@ -404,7 +416,6 @@ public class GameRoomGUI extends Application {
         boards.setPadding(new Insets(24));
         // Không kéo dãn 2 khung bàn cờ theo chiều cao vùng giữa -> khung ôm vừa lưới 10x10
         boards.setFillHeight(false);
-        boards.getChildren().addAll(createFleetPanel(), createEnemyPanel());
 
         VBox fleetPanel = createFleetPanel();
         enemyBoardPanel = createEnemyPanel();
@@ -446,25 +457,30 @@ public class GameRoomGUI extends Application {
 
     private VBox createSetupControlPanel() {
         VBox panel = new VBox();
-        panel.getStyleClass().add("board-panel");
+        panel.getStyleClass().addAll("board-panel", "pl-setup-panel");
         panel.setPrefWidth(407);
         panel.setMinWidth(407);
         panel.setMaxWidth(407);
+        // Cao bằng khung "Hạm đội của bạn" bên cạnh cho 2 khung thẳng hàng
+        if (khungHamDoi != null) {
+            panel.minHeightProperty().bind(khungHamDoi.heightProperty());
+        }
 
-        Label header = new Label("Bố trí Hạm đội (Cách nhau ít nhất 1 ô)");
-        header.getStyleClass().addAll("board-header", "board-header-fleet");
+        Label header = new Label("Bố trí hạm đội", taoIcon("pi-anchor", 16));
+        header.getStyleClass().addAll("board-header", "board-header-setup");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
 
-        VBox body = new VBox(10);
-        body.setPadding(new Insets(14, 16, 16, 16));
+        VBox body = new VBox(8);
+        body.setPadding(new Insets(12, 16, 14, 16));
         body.setAlignment(Pos.TOP_CENTER);
 
-        lblSetupHint = new Label("Click trái để đặt/nhấc tàu. Bấm phím R hoặc Click phải để xoay 4 hướng (hoặc xoay trực tiếp tàu đang trỏ).");
+        lblSetupHint = new Label(SETUP_HINT);
         lblSetupHint.setWrapText(true);
-        lblSetupHint.setStyle("-fx-text-fill: #455A64; -fx-font-size: 12px;");
+        lblSetupHint.setMaxWidth(Double.MAX_VALUE);
+        lblSetupHint.getStyleClass().add("pl-setup-hint");
 
-        VBox shipListBox = new VBox(7);
+        VBox shipListBox = new VBox(6);
         for (int i = 0; i < 5; i++) {
             final int shipIdx = i;
             HBox card = createShipSelectorCard(shipIdx);
@@ -472,28 +488,37 @@ public class GameRoomGUI extends Application {
             shipListBox.getChildren().add(card);
         }
 
-        btnRotateShip = new Button(DIRECTION_LABELS[0]);
-        btnRotateShip.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        // Hàng 1: nút đổi hướng (rộng hết khung). Hàng 2: Ngẫu nhiên + Xóa bàn chia đôi
+        btnRotateShip = new Button(DIRECTION_LABELS[0], taoIcon("pi-refresh", 14));
+        btnRotateShip.getStyleClass().addAll("dialog-button", "dialog-button-secondary", "pl-setup-tool");
+        btnRotateShip.setMaxWidth(Double.MAX_VALUE);
         btnRotateShip.setOnAction(e -> toggleShipOrientation());
 
-        btnRandomShips = new Button("🎲 Ngẫu nhiên");
-        btnRandomShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        btnRandomShips = new Button("Ngẫu nhiên", taoIcon("pi-bolt", 14));
+        btnRandomShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary", "pl-setup-tool");
+        btnRandomShips.setMaxWidth(Double.MAX_VALUE);
         btnRandomShips.setOnAction(e -> randomizeSetupShips());
 
-        btnClearShips = new Button("🗑 Xóa bàn");
-        btnClearShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary");
+        btnClearShips = new Button("Xóa bàn", taoIcon("pi-trash", 14));
+        btnClearShips.getStyleClass().addAll("dialog-button", "dialog-button-secondary", "pl-setup-tool");
+        btnClearShips.setMaxWidth(Double.MAX_VALUE);
         btnClearShips.setOnAction(e -> clearAllSetupShips());
 
-        HBox toolRow = new HBox(8, btnRotateShip, btnRandomShips, btnClearShips);
-        toolRow.setAlignment(Pos.CENTER);
+        HBox toolRow = new HBox(8, btnRandomShips, btnClearShips);
+        HBox.setHgrow(btnRandomShips, Priority.ALWAYS);
+        HBox.setHgrow(btnClearShips, Priority.ALWAYS);
 
-        btnReadySetup = new Button("✔ Sẵn sàng chiến đấu");
-        btnReadySetup.getStyleClass().addAll("dialog-button", "dialog-button-primary");
+        btnReadySetup = new Button("Sẵn sàng chiến đấu", taoIcon("pi-play", 14));
+        btnReadySetup.getStyleClass().addAll("dialog-button", "dialog-button-primary", "pl-btn-ready");
         btnReadySetup.setMaxWidth(Double.MAX_VALUE);
         btnReadySetup.setDisable(true);
         btnReadySetup.setOnAction(e -> lockAndSubmitShips());
 
-        body.getChildren().addAll(lblSetupHint, shipListBox, toolRow, btnReadySetup);
+        Region dayXuong = new Region();
+        VBox.setVgrow(dayXuong, Priority.ALWAYS);
+
+        body.getChildren().addAll(lblSetupHint, shipListBox, btnRotateShip, toolRow, dayXuong, btnReadySetup);
+        VBox.setVgrow(body, Priority.ALWAYS);
         panel.getChildren().addAll(header, body);
         return panel;
     }
@@ -511,14 +536,13 @@ public class GameRoomGUI extends Application {
             seg.setPrefSize(16, 16);
             seg.setMinSize(16, 16);
             seg.setMaxSize(16, 16);
-            seg.getStyleClass().addAll("cell-ship", SETUP_SHIP_STYLES[idx]);
-            seg.setStyle("-fx-background-radius: 5;");
+            seg.getStyleClass().addAll("cell-ship", SETUP_SHIP_STYLES[idx], "pl-setup-seg");
             previewPill.getChildren().add(seg);
         }
         previewPill.setMinWidth(95);
 
         Label nameLbl = new Label(SETUP_SHIP_NAMES[idx]);
-        nameLbl.setStyle("-fx-text-fill: #37474F; -fx-font-weight: 700; -fx-font-size: 12px;");
+        nameLbl.getStyleClass().add("pl-setup-ship-name");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -552,15 +576,16 @@ public class GameRoomGUI extends Application {
         setupControlPanel.setVisible(true);
         setupControlPanel.setManaged(true);
         if (inventoryBar != null) {
-            inventoryBar.setDisable(true);
+            inventoryBar.setVisible(false);   // lúc xếp tàu chưa cần kho đạn -> ẩn hẳn
+            inventoryBar.setManaged(false);
         }
 
         btnRotateShip.setDisable(false);
         btnRotateShip.setText(DIRECTION_LABELS[0]);
         btnRandomShips.setDisable(false);
         btnClearShips.setDisable(false);
-        btnReadySetup.setText("✔ Sẵn sàng chiến đấu");
-        lblSetupHint.setText("Click trái để đặt/nhấc tàu. Bấm phím R hoặc Click phải để xoay 4 hướng (hoặc xoay trực tiếp tàu đang trỏ).");
+        btnReadySetup.setText("Sẵn sàng chiến đấu");
+        lblSetupHint.setText(SETUP_HINT);
 
         turnIndicatorLabel.getStyleClass().removeAll("turn-indicator-active", "turn-indicator-waiting");
         turnIndicatorLabel.setText("Đặt tàu (" + seconds + "s)");
@@ -591,7 +616,8 @@ public class GameRoomGUI extends Application {
         enemyBoardPanel.setVisible(true);
         enemyBoardPanel.setManaged(true);
         if (inventoryBar != null) {
-            inventoryBar.setDisable(false);
+            inventoryBar.setVisible(true);    // vào trận mới hiện kho đạn
+            inventoryBar.setManaged(true);
         }
     }
 
@@ -901,7 +927,7 @@ public class GameRoomGUI extends Application {
         btnRandomShips.setDisable(true);
         btnClearShips.setDisable(true);
         btnReadySetup.setDisable(true);
-        btnReadySetup.setText("⏳ Đang chờ đối thủ...");
+        btnReadySetup.setText("Đang chờ đối thủ...");
         turnIndicatorLabel.setText("Đã sẵn sàng! Chờ đối thủ...");
         refreshSetupShipCards();
 

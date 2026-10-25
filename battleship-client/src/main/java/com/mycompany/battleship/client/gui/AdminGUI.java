@@ -75,7 +75,7 @@ public class AdminGUI extends Application {
         tabPane.getTabs().add(taoTabLichSuReplay());
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabPane.getStyleClass().add("ad-tabs");
-        
+
         // Lắng nghe sự kiện đổi tab để yêu cầu dữ liệu mới từ Server
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
             if (newTab != null) {
@@ -351,7 +351,17 @@ public class AdminGUI extends Application {
         Region khoangTrong = new Region();
         HBox.setHgrow(khoangTrong, Priority.ALWAYS);
 
-        HBox box = new HBox(16, brand, khoangTrong, chip, btnLogout);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "ic-mute" : "ic-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("ad-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("ic-volume", "ic-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "ic-mute" : "ic-volume");
+        });
+
+        HBox box = new HBox(16, brand, khoangTrong, btnAmThanh, chip, btnLogout);
         box.setAlignment(Pos.CENTER_LEFT);
         box.getStyleClass().add("ad-header");
         return box;

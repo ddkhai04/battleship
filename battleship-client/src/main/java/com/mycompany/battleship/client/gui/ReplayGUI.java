@@ -6,8 +6,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.NumberBinding;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -78,6 +81,10 @@ public class ReplayGUI extends Stage {
     private Button btnPlayPause;
     private Timeline autoPlayTimer;
 
+    // Khung chuẩn của màn xem lại
+    private static final double KHUNG_RONG = 1000;
+    private static final double KHUNG_CAO = 700;
+
     public ReplayGUI(JsonObject replayData) {
         String matchId = replayData.has("matchId") ? replayData.get("matchId").getAsString() : "0";
         if (matchId.endsWith(".0")) matchId = matchId.substring(0, matchId.length() - 2);
@@ -105,25 +112,27 @@ public class ReplayGUI extends Stage {
         gameLayout.setCenter(createBoardsArea());
         gameLayout.setBottom(createControlBar());
 
-        ImageView bgImageView = new ImageView();
-        try {
-            URL bgUrl = getClass().getResource("/ocean-bg.gif");
-            if (bgUrl == null) bgUrl = getClass().getResource("/bg.png");
-            if (bgUrl != null) {
-                bgImageView.setImage(new Image(bgUrl.toExternalForm()));
-                bgImageView.fitWidthProperty().bind(widthProperty());
-                bgImageView.fitHeightProperty().bind(heightProperty());
-            }
-        } catch (Exception ignored) {}
+        // Khung chuẩn 1000x700; cửa sổ to/nhỏ thì phóng/thu theo tỷ lệ (giống màn trận đấu)
+        gameLayout.setMinSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setPrefSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setMaxSize(KHUNG_RONG, KHUNG_CAO);
+        Group nhomCoGian = new Group(gameLayout);
 
-        StackPane rootStack = new StackPane(bgImageView, gameLayout);
-        rootStack.getStyleClass().add("app-background");
+        StackPane rootStack = new StackPane(nhomCoGian);
+        rootStack.getStyleClass().addAll("app-background", "pl-game");
 
-        Scene scene = new Scene(rootStack, 1000, 700);
+        Scene scene = new Scene(rootStack, KHUNG_RONG, KHUNG_CAO);
         scene.getStylesheets().add(resolveCssPath());
+        scene.getStylesheets().add(getClass().getResource("/player.css").toExternalForm());
+
+        NumberBinding tiLe = Bindings.min(scene.widthProperty().divide(KHUNG_RONG),
+                scene.heightProperty().divide(KHUNG_CAO));
+        gameLayout.scaleXProperty().bind(tiLe);
+        gameLayout.scaleYProperty().bind(tiLe);
+        setMinWidth(760);
+        setMinHeight(560);
 
         setScene(scene);
-        setResizable(false);
 
         // Hiển thị trạng thái khởi đầu (Lượt 0)
         hienThiLuot(0);
@@ -340,21 +349,29 @@ public class ReplayGUI extends Stage {
 
         HBox player2Box = createPlayerBox(p2Name, "avatar-color-2", false);
 
-        Button exitBtn = new Button("Thoát ✖");
-        exitBtn.setStyle("-fx-background-color: #ff4d4f; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-cursor: hand;");
+        Button exitBtn = new Button("Thoát", taoIcon("pi-flag", 14));
+        exitBtn.getStyleClass().add("pl-btn-exit");
         exitBtn.setOnAction(e -> dungVaDong());
 
-        HBox rightGroup = new HBox(20, player2Box, exitBtn);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "pi-mute" : "pi-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("pl-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("pi-volume", "pi-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "pi-mute" : "pi-volume");
+        });
+
+        HBox rightGroup = new HBox(20, player2Box, btnAmThanh, exitBtn);
         rightGroup.setPrefWidth(280);
         rightGroup.setAlignment(Pos.CENTER_RIGHT);
 
-        Label lblTitle = new Label("REPLAY TRẬN #" + matchId);
-        lblTitle.getStyleClass().add("player-name");
-        lblTitle.setStyle("-fx-font-size: 16px; -fx-text-fill: #00E5FF;");
+        Label lblTitle = new Label("XEM LẠI TRẬN #" + matchId, taoIcon("pi-history", 16));
+        lblTitle.getStyleClass().addAll("player-name", "pl-replay-title");
 
         lblTurnDescription = new Label("Bắt đầu trận đấu - Sẵn sàng");
-        lblTurnDescription.getStyleClass().addAll("turn-indicator", "turn-indicator-active");
-        lblTurnDescription.setStyle("-fx-font-size: 13px;");
+        lblTurnDescription.getStyleClass().addAll("turn-indicator", "turn-indicator-active", "pl-replay-desc");
 
         VBox centerBox = new VBox(4, lblTitle, lblTurnDescription);
         centerBox.setAlignment(Pos.CENTER);
@@ -390,7 +407,7 @@ public class ReplayGUI extends Stage {
             lblP2Initial = initial;
         }
 
-        Label badge = new Label("REPLAY");
+        Label badge = new Label("XEM LẠI");
         badge.getStyleClass().add("score-badge");
 
         VBox textBox = new VBox(2, nameLabel, badge);
@@ -406,6 +423,7 @@ public class ReplayGUI extends Stage {
         boardsBox.getStyleClass().add("boards-area");
         boardsBox.setAlignment(Pos.CENTER);
         boardsBox.setPadding(new Insets(10, 24, 10, 24));
+        boardsBox.setFillHeight(false);   // khung ôm vừa lưới 10x10
 
         boardsBox.getChildren().addAll(
                 createBoardPanel("Hạm đội của " + p1Name, p1Cells, true),
@@ -418,7 +436,7 @@ public class ReplayGUI extends Stage {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
 
-        Label header = new Label(title);
+        Label header = new Label(title, taoIcon("pi-boat", 16));
         header.getStyleClass().addAll("board-header", "board-header-fleet");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -469,20 +487,23 @@ public class ReplayGUI extends Stage {
         });
 
         lblTurnCounter = new Label("Lượt: 0 / " + maxTurns);
-        lblTurnCounter.setStyle("-fx-text-fill: #E0E6ED; -fx-font-weight: bold; -fx-font-size: 13px;");
+        lblTurnCounter.getStyleClass().add("pl-replay-counter");
 
-        Button btnFirst = taoNutDieuKhien("⏮️ Đầu trận", e -> hienThiLuot(0));
-        Button btnPrev = taoNutDieuKhien("◀️ Lùi 1 lượt", e -> {
+        Button btnFirst = taoNutDieuKhien("Đầu trận", "pi-skip-prev", e -> hienThiLuot(0));
+        Button btnPrev = taoNutDieuKhien("Lùi 1 lượt", "pi-prev", e -> {
             if (currentTurnIdx > 0) hienThiLuot(currentTurnIdx - 1);
         });
 
-        btnPlayPause = taoNutDieuKhien("▶️ Tự động phát", e -> batTatTuDongPhat());
-        btnPlayPause.setStyle("-fx-background-color: #00ACC1; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+        btnPlayPause = taoNutDieuKhien("Tự động phát", "pi-play", e -> batTatTuDongPhat());
+        btnPlayPause.getStyleClass().add("pl-replay-btn-main");
 
-        Button btnNext = taoNutDieuKhien("Tiến 1 lượt ▶️", e -> {
+        Button btnNext = taoNutDieuKhien("Tiến 1 lượt", "pi-next", e -> {
             if (currentTurnIdx < turns.size()) hienThiLuot(currentTurnIdx + 1);
         });
-        Button btnLast = taoNutDieuKhien("Cuối trận ⏭️", e -> hienThiLuot(turns.size()));
+        // Nút "Tiến" và "Cuối trận": icon nằm bên phải chữ
+        btnNext.setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
+        Button btnLast = taoNutDieuKhien("Cuối trận", "pi-skip-next", e -> hienThiLuot(turns.size()));
+        btnLast.setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
 
         HBox btnBox = new HBox(12, btnFirst, btnPrev, btnPlayPause, btnNext, btnLast);
         btnBox.setAlignment(Pos.CENTER);
@@ -491,18 +512,35 @@ public class ReplayGUI extends Stage {
         return bar;
     }
 
-    private Button taoNutDieuKhien(String text, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
-        Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: #1E3A5F; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 14; -fx-cursor: hand;");
+    /** Icon vẽ bằng đường SVG (hình dạng nằm trong player.css). */
+    private Region taoIcon(String loai, double co) {
+        Region icon = new Region();
+        icon.getStyleClass().addAll("pl-icon", loai);
+        icon.setMinSize(co, co);
+        icon.setPrefSize(co, co);
+        icon.setMaxSize(co, co);
+        return icon;
+    }
+
+    private Button taoNutDieuKhien(String text, String icon, javafx.event.EventHandler<javafx.event.ActionEvent> handler) {
+        Button btn = new Button(text, taoIcon(icon, 14));
+        btn.getStyleClass().add("pl-replay-btn");
         btn.setOnAction(handler);
         return btn;
+    }
+
+    /** Đổi nút Tự động phát giữa 2 trạng thái: đang phát (hiện Tạm dừng) và đang dừng (hiện Tự động phát). */
+    private void datNutPhat(boolean dangPhat) {
+        btnPlayPause.setText(dangPhat ? "Tạm dừng" : "Tự động phát");
+        btnPlayPause.setGraphic(taoIcon(dangPhat ? "pi-pause" : "pi-play", 14));
+        btnPlayPause.getStyleClass().remove("pl-replay-btn-pause");
+        if (dangPhat) btnPlayPause.getStyleClass().add("pl-replay-btn-pause");
     }
 
     private void batTatTuDongPhat() {
         if (autoPlayTimer != null && autoPlayTimer.getStatus() == Timeline.Status.RUNNING) {
             autoPlayTimer.stop();
-            btnPlayPause.setText("▶️ Tự động phát");
-            btnPlayPause.setStyle("-fx-background-color: #00ACC1; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+            datNutPhat(false);
         } else {
             if (currentTurnIdx >= turns.size()) hienThiLuot(0);
             autoPlayTimer = new Timeline(new KeyFrame(Duration.millis(800), e -> {
@@ -510,14 +548,12 @@ public class ReplayGUI extends Stage {
                     hienThiLuot(currentTurnIdx + 1);
                 } else {
                     autoPlayTimer.stop();
-                    btnPlayPause.setText("▶️ Tự động phát");
-                    btnPlayPause.setStyle("-fx-background-color: #00ACC1; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+                    datNutPhat(false);
                 }
             }));
             autoPlayTimer.setCycleCount(Timeline.INDEFINITE);
             autoPlayTimer.play();
-            btnPlayPause.setText("⏸️ Tạm dừng");
-            btnPlayPause.setStyle("-fx-background-color: #E65100; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+            datNutPhat(true);
         }
     }
 
@@ -699,11 +735,11 @@ private String tenLoaiDan(String missileType) {
                 String resStr;
                 if (totalCells > 1) {
                     resStr = anySunk
-                            ? String.format("ĐÁNH CHÌM TÀU! 💀 (Trúng %d/%d ô)", hitCount, totalCells)
-                            : (hitCount > 0 ? String.format("TRÚNG %d/%d Ô! 🔥", hitCount, totalCells) : String.format("TRƯỢT CẢ %d Ô ⚪", totalCells));
+                            ? String.format("ĐÁNH CHÌM TÀU! (Trúng %d/%d ô)", hitCount, totalCells)
+                            : (hitCount > 0 ? String.format("TRÚNG %d/%d Ô!", hitCount, totalCells) : String.format("TRƯỢT CẢ %d Ô", totalCells));
                 } else {
                     boolean isHit = hitCount > 0 || "HIT".equalsIgnoreCase(res) || "SUNK".equalsIgnoreCase(res);
-                    resStr = isHit ? (anySunk ? "ĐÁNH CHÌM TÀU! 💀" : "TRÚNG ĐÍCH! 🔥") : "BẮN TRƯỢT ⚪";
+                    resStr = isHit ? (anySunk ? "ĐÁNH CHÌM TÀU!" : "TRÚNG ĐÍCH!") : "BẮN TRƯỢT";
                 }
                 lastAction = String.format("Lượt %d: %s bắn %s (%s)%s ➔ %s", (i + 1), shooterName, targetName, coord, weaponTag, resStr);
             }
@@ -720,8 +756,7 @@ private String tenLoaiDan(String missileType) {
             daHienThongBaoKetThuc = true;
             if (autoPlayTimer != null && autoPlayTimer.getStatus() == Timeline.Status.RUNNING) {
                 autoPlayTimer.stop();
-                btnPlayPause.setText("▶️ Tự động phát");
-                btnPlayPause.setStyle("-fx-background-color: #00ACC1; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6;");
+                datNutPhat(false);
             }
 
             // Kiểm tra xem có đội nào bị bắn chìm toàn bộ 5 tàu không
@@ -755,13 +790,13 @@ private String tenLoaiDan(String missileType) {
                 lyDoThua = "Người chơi " + tenNguoiThua + " đã hết thời gian suy nghĩ (Timeout) hoặc bỏ cuộc!";
             }
 
-            lblTurnDescription.setText("🏁 Kết thúc: " + tenNguoiThang + " thắng (" + tenNguoiThua + " thua)");
+            lblTurnDescription.setText("Kết thúc: " + tenNguoiThang + " thắng (" + tenNguoiThua + " thua)");
 
             javafx.application.Platform.runLater(() -> {
                 javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
                 alert.setTitle("Kết thúc trận đấu");
-                alert.setHeaderText("🏆 Chiến thắng: " + tenNguoiThang);
-                alert.setContentText("❌ Thất bại: " + tenNguoiThua + "\n📌 Lý do: " + lyDoThua);
+                alert.setHeaderText("Chiến thắng: " + tenNguoiThang);
+                alert.setContentText("Thất bại: " + tenNguoiThua + "\nLý do: " + lyDoThua);
                 DialogStyle.apply(alert);
                 alert.show();
             });

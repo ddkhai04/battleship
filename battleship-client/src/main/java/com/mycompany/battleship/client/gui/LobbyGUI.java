@@ -309,7 +309,17 @@ public class LobbyGUI extends Application {
         Region khoangTrong = new Region();
         HBox.setHgrow(khoangTrong, Priority.ALWAYS);
 
-        HBox box = new HBox(16, brand, khoangTrong, chip, btnLogout);
+        Region iconLoa = taoIcon(SplashGUI.tatTieng ? "pi-mute" : "pi-volume", 18);
+        Button btnAmThanh = new Button();
+        btnAmThanh.setGraphic(iconLoa);
+        btnAmThanh.getStyleClass().add("pl-btn-sound");
+        btnAmThanh.setOnAction(e -> {
+            SplashGUI.doiTieng();
+            iconLoa.getStyleClass().removeAll("pi-volume", "pi-mute");
+            iconLoa.getStyleClass().add(SplashGUI.tatTieng ? "pi-mute" : "pi-volume");
+        });
+
+        HBox box = new HBox(16, brand, khoangTrong, btnAmThanh, chip, btnLogout);
         box.setAlignment(Pos.CENTER_LEFT);
         box.getStyleClass().add("pl-header");
         return box;
