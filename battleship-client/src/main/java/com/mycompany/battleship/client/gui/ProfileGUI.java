@@ -1,5 +1,6 @@
 package com.mycompany.battleship.client.gui;
 
+import com.mycompany.battleship.common.model.ProfileDTO;
 import com.mycompany.battleship.common.model.UserCombatStats;
 import com.mycompany.battleship.common.model.UserShipPlacement;
 import com.mycompany.battleship.common.model.UserShotTarget;
@@ -168,12 +169,12 @@ public class ProfileGUI extends Application {
         luoi.setVgap(2);
         luoi.setAlignment(Pos.CENTER);
 
-        // Nhãn cột A-J (hàng 0) và nhãn hàng 1-10 (cột 0)
+        // Quy ước server: chữ = HÀNG (A-J), số = CỘT (1-10). Nhãn cột 1-10 ở trên, nhãn hàng A-J bên trái
         for (int c = 0; c < SO_O; c++) {
-            luoi.add(taoNhan(String.valueOf(CHU_COT.charAt(c))), c + 1, 0);
+            luoi.add(taoNhan(String.valueOf(c + 1)), c + 1, 0);
         }
         for (int r = 0; r < SO_O; r++) {
-            luoi.add(taoNhan(String.valueOf(r + 1)), 0, r + 1);
+            luoi.add(taoNhan(String.valueOf(CHU_COT.charAt(r))), 0, r + 1);
         }
         // 100 ô heatmap
         for (int r = 0; r < SO_O; r++) {
@@ -226,6 +227,13 @@ public class ProfileGUI extends Application {
         lblAvatar.setText(tenHienThi.substring(0, 1).toUpperCase());
     }
 
+    /** Nhận gói PROFILE_DATA từ server: cập nhật thống kê + 2 heatmap cùng lúc. */
+    public void hienHoSo(ProfileDTO dto) {
+        if (dto.thongKe != null) capNhatThongKe(dto.thongKe);
+        capNhatHeatmapDatTau(dto.datTau != null ? dto.datTau : new java.util.ArrayList<>());
+        capNhatHeatmapNhamBan(dto.oBan != null ? dto.oBan : new java.util.ArrayList<>());
+    }
+
     /** Cập nhật 3 thẻ thống kê: tỷ lệ bắn trúng, chuỗi thắng, chuỗi thua. */
     public void capNhatThongKe(UserCombatStats s) {
         double tyLe = s.getAccuracy();
@@ -276,17 +284,17 @@ public class ProfileGUI extends Application {
 
     // ------------------------------------------------------------------ hàm phụ
 
-    /** Đổi chuỗi "E3" thành {hàng, cột} bắt đầu từ 0. Sai định dạng thì trả về null. */
+    /** Đổi chuỗi "E3" thành {hàng, cột} bắt đầu từ 0 (chữ = hàng, số = cột). Sai định dạng thì trả về null. */
     private int[] docToaDo(String toaDo) {
         if (toaDo == null || toaDo.length() < 2) return null;
-        int cot = CHU_COT.indexOf(Character.toUpperCase(toaDo.charAt(0)));
-        int hang;
+        int hang = CHU_COT.indexOf(Character.toUpperCase(toaDo.charAt(0)));
+        int cot;
         try {
-            hang = Integer.parseInt(toaDo.substring(1)) - 1;
+            cot = Integer.parseInt(toaDo.substring(1)) - 1;
         } catch (NumberFormatException e) {
             return null;
         }
-        if (cot < 0 || hang < 0 || hang >= SO_O) return null;
+        if (hang < 0 || cot < 0 || cot >= SO_O) return null;
         return new int[]{hang, cot};
     }
 
@@ -324,7 +332,7 @@ public class ProfileGUI extends Application {
         java.util.Random rd = new java.util.Random(7);
         for (int r = 0; r < SO_O; r++) {
             for (int c = 0; c < SO_O; c++) {
-                String toaDo = "" + CHU_COT.charAt(c) + (r + 1);
+                String toaDo = "" + CHU_COT.charAt(r) + (c + 1);
                 boolean gan = (r + c) % 3 != 0;
                 int soTau = gan ? rd.nextInt(14) : rd.nextInt(3);
                 if (soTau > 0) tau.add(new UserShipPlacement(0, 1, toaDo, soTau));

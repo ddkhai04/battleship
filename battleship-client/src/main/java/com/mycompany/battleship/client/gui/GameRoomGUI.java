@@ -5,6 +5,13 @@ import com.mycompany.battleship.common.model.MissileType;
 import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.ShotResult;
 import javafx.animation.KeyFrame;
+import javafx.beans.binding.Bindings;
+import javafx.beans.binding.NumberBinding;
+import javafx.scene.Group;
+import javafx.scene.layout.Pane;
+import javafx.scene.shape.Arc;
+import javafx.scene.shape.ArcType;
+import javafx.scene.text.Font;
 import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.application.Application;
@@ -55,6 +62,10 @@ public class GameRoomGUI extends Application {
     private static final int GRID_SIZE = 10;
     private static final double CELL_SIZE = 36;
 
+    // Kích thước "chuẩn" của màn trận đấu. Khi cửa sổ to/nhỏ hơn, toàn bộ nội dung
+    // được phóng to/thu nhỏ theo tỷ lệ (giữ nguyên hình dạng) thay vì để lại khoảng trắng.
+    private static final double KHUNG_RONG = 1000;
+    private static final double KHUNG_CAO = 680;
     private static final int[] SETUP_SHIP_LENGTHS = {5, 4, 3, 3, 2};
     private static final String[] SETUP_SHIP_NAMES = {
         "Tàu Sân Bay (5 ô)",
@@ -84,6 +95,12 @@ public class GameRoomGUI extends Application {
     private Label timerLabel;
     private Timeline turnTimer;
     private int currentSeconds = 45;
+    private int tongGiayLuot = 45;      // tổng số giây của lượt hiện tại (để tính độ dài vòng tròn)
+    private Arc vongDemNguoc;           // vòng tròn chạy quanh đồng hồ
+
+    // Giữ lại 2 khung bàn cờ để tô viền sáng khi đến lượt
+    private VBox khungHamDoi;
+    private VBox khungDoiThu;
 
     private Label turnIndicatorLabel;
     private Label countdownLabel;
@@ -174,26 +191,37 @@ public class GameRoomGUI extends Application {
     @Override
     public void start(Stage primaryStage) {
         LobbyGUI.dongSanhChoHienTai();
+        
+        
+        // Nạp font tiêu đề (dùng cho số đếm ngược và hộp kết quả)
+        Font.loadFont(getClass().getResourceAsStream("/TitanOne-Regular.ttf"), 24);
 
         BorderPane gameLayout = createRootLayout();
         countdownOverlay = createCountdownOverlayContainer();
         resultOverlay = createResultOverlayContainer();
 
-        javafx.scene.image.ImageView bgImageView = new javafx.scene.image.ImageView();
-        try {
-            String bgPath = getClass().getResource("/ocean-bg.gif").toExternalForm();
-            bgImageView.setImage(new javafx.scene.image.Image(bgPath));
-            bgImageView.fitWidthProperty().bind(primaryStage.widthProperty());
-            bgImageView.fitHeightProperty().bind(primaryStage.heightProperty());
-        } catch (Exception e) {
-            System.out.println("Lỗi: Không tìm thấy ảnh nền ocean-bg.gif");
-        }
+        // Khóa bố cục trận đấu ở kích thước chuẩn 1000x680 ...
+        gameLayout.setMinSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setPrefSize(KHUNG_RONG, KHUNG_CAO);
+        gameLayout.setMaxSize(KHUNG_RONG, KHUNG_CAO);
+        // ... rồi bọc trong Group để khi phóng to/thu nhỏ (scale) StackPane vẫn căn giữa đúng
+        Group nhomCoGian = new Group(gameLayout);
 
-        StackPane rootStack = new StackPane(bgImageView, gameLayout, countdownOverlay, resultOverlay);
-        rootStack.getStyleClass().add("app-background");
+        StackPane rootStack = new StackPane(nhomCoGian, countdownOverlay, resultOverlay);
+        rootStack.getStyleClass().addAll("app-background", "pl-game");
 
-        Scene scene = new Scene(rootStack, 1000, 680);
+        Scene scene = new Scene(rootStack, KHUNG_RONG, KHUNG_CAO);
         scene.getStylesheets().add(resolveCssPath());
+        scene.getStylesheets().add(getClass().getResource("/player.css").toExternalForm());
+
+        // Tỷ lệ phóng = min(rộng cửa sổ / 1000, cao cửa sổ / 680) -> mọi thứ to lên đều nhau,
+        // phần dư 2 bên là nền biển (không còn khoảng trắng)
+        NumberBinding tiLe = Bindings.min(scene.widthProperty().divide(KHUNG_RONG),
+                scene.heightProperty().divide(KHUNG_CAO));
+        gameLayout.scaleXProperty().bind(tiLe);
+        gameLayout.scaleYProperty().bind(tiLe);
+        primaryStage.setMinWidth(760);
+        primaryStage.setMinHeight(560);
 
         // Dùng EventFilter để bắt phím R mọi lúc không bị nút bấm chiếm Focus
         scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
@@ -242,8 +270,8 @@ public class GameRoomGUI extends Application {
         player1Box.setAlignment(Pos.CENTER_LEFT);
 
         HBox player2Box = createPlayerInfo(player2Name, player2Score, "avatar-color-2", false);
-        Button exitBtn = new Button("Thoát ✖");
-        exitBtn.setStyle("-fx-background-color: #ff4d4f; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6; -fx-padding: 6 12; -fx-cursor: hand;");
+        Button exitBtn = new Button("Thoát", taoIcon("pi-flag", 14));
+        exitBtn.getStyleClass().add("pl-btn-exit");
 
         exitBtn.setOnAction(e -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
@@ -317,19 +345,40 @@ public class GameRoomGUI extends Application {
     private StackPane createTimerCircle() {
         StackPane timerPane = new StackPane();
         timerPane.getStyleClass().add("timer-circle");
-        timerPane.setMinSize(64, 64);
-        timerPane.setMaxSize(64, 64);
-        Circle bg = new Circle(30);
-        bg.getStyleClass().add("timer-circle-bg");
+        timerPane.setMinSize(68, 68);
+        timerPane.setMaxSize(68, 68);
+
+        // Vòng nền + vòng tiến độ đặt trong Pane cố định 68x68 (tọa độ tuyệt đối)
+        // để khi vòng ngắn dần thì đồng hồ không bị xê dịch
+        Circle bg = new Circle(34, 34, 30);
+        bg.getStyleClass().add("pl-timer-bg");
+        vongDemNguoc = new Arc(34, 34, 30, 30, 90, -360);
+        vongDemNguoc.setType(ArcType.OPEN);
+        vongDemNguoc.getStyleClass().add("pl-timer-arc");
+        Pane vong = new Pane(bg, vongDemNguoc);
+        vong.setMinSize(68, 68);
+        vong.setMaxSize(68, 68);
+
         timerLabel = new Label("45");
         timerLabel.getStyleClass().add("timer-label");
-        timerPane.getChildren().addAll(bg, timerLabel);
+        timerPane.getChildren().addAll(vong, timerLabel);
         return timerPane;
+    }
+
+    /** Tạo icon vẽ bằng đường SVG (hình dạng nằm trong player.css, ví dụ "pi-boat"). */
+    private Region taoIcon(String loai, double co) {
+        Region icon = new Region();
+        icon.getStyleClass().addAll("pl-icon", loai);
+        icon.setMinSize(co, co);
+        icon.setPrefSize(co, co);
+        icon.setMaxSize(co, co);
+        return icon;
     }
 
     public void startTurnTimer(int seconds) {
         if (turnTimer != null) turnTimer.stop();
         currentSeconds = seconds;
+        tongGiayLuot = seconds > 0 ? seconds : 45;
         setTimerSeconds(currentSeconds);
 
         turnTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
@@ -353,6 +402,9 @@ public class GameRoomGUI extends Application {
         boards.getStyleClass().add("boards-area");
         boards.setAlignment(Pos.CENTER);
         boards.setPadding(new Insets(24));
+        // Không kéo dãn 2 khung bàn cờ theo chiều cao vùng giữa -> khung ôm vừa lưới 10x10
+        boards.setFillHeight(false);
+        boards.getChildren().addAll(createFleetPanel(), createEnemyPanel());
 
         VBox fleetPanel = createFleetPanel();
         enemyBoardPanel = createEnemyPanel();
@@ -369,7 +421,8 @@ public class GameRoomGUI extends Application {
     private VBox createFleetPanel() {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
-        Label header = new Label("Hạm đội của bạn");
+        khungHamDoi = panel;
+        Label header = new Label("Hạm đội của bạn", taoIcon("pi-boat", 16));
         header.getStyleClass().addAll("board-header", "board-header-fleet");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -381,7 +434,8 @@ public class GameRoomGUI extends Application {
     private VBox createEnemyPanel() {
         VBox panel = new VBox();
         panel.getStyleClass().add("board-panel");
-        Label header = new Label("Bàn cờ đối thủ");
+        khungDoiThu = panel;
+        Label header = new Label("Bàn cờ đối thủ", taoIcon("pi-target", 16));
         header.getStyleClass().addAll("board-header", "board-header-enemy");
         header.setMaxWidth(Double.MAX_VALUE);
         header.setAlignment(Pos.CENTER);
@@ -1391,11 +1445,14 @@ public class GameRoomGUI extends Application {
         hideCountdown();
 
         turnIndicatorLabel.getStyleClass().removeAll("turn-indicator-active", "turn-indicator-waiting");
+        khungDoiThu.getStyleClass().remove("pl-board-active");
         if (isMyTurn) {
-            turnIndicatorLabel.setText("Lượt của bạn");
+            turnIndicatorLabel.setText("LƯỢT CỦA BẠN - KHAI HỎA!");
             turnIndicatorLabel.getStyleClass().add("turn-indicator-active");
+            khungDoiThu.getStyleClass().add("pl-board-active");   // bàn cờ đối thủ sáng viền cam
+            playPulse(turnIndicatorLabel);
         } else {
-            turnIndicatorLabel.setText("Lượt đối thủ");
+            turnIndicatorLabel.setText("Lượt đối thủ...");
             turnIndicatorLabel.getStyleClass().add("turn-indicator-waiting");
         }
 
@@ -1404,12 +1461,19 @@ public class GameRoomGUI extends Application {
 
     public void setTimerSeconds(int seconds) {
         timerLabel.setText(String.valueOf(seconds));
+        // Vòng tròn ngắn dần theo thời gian còn lại (đủ vòng = 360 độ)
+        double phanCon = Math.max(0, Math.min(1, (double) seconds / tongGiayLuot));
+        vongDemNguoc.setLength(-360 * phanCon);
         if (seconds <= 10) {
             if (!timerLabel.getStyleClass().contains("timer-label-warn")) {
                 timerLabel.getStyleClass().add("timer-label-warn");
             }
+            if (!vongDemNguoc.getStyleClass().contains("pl-timer-arc-warn")) {
+                vongDemNguoc.getStyleClass().add("pl-timer-arc-warn");
+            }
         } else {
             timerLabel.getStyleClass().remove("timer-label-warn");
+            vongDemNguoc.getStyleClass().remove("pl-timer-arc-warn");
         }
     }
 

@@ -4,7 +4,9 @@
    Heatmap dat tau = thang mau teal, heatmap nham ban = thang mau cam-do.
    ========================================================================== */
 
-.profile-root {
+/* Biến màu đặt ở .root để MỌI màn dùng chung được (ProfileGUI và tab Biểu đồ nhiệt của AdminGUI).
+   Nếu đặt trong .profile-root thì màn Admin không tìm thấy biến -> báo lỗi 'Could not resolve -p-dim' */
+.root {
     -p-bg: #EEF6F7;
     -p-card: #FFFFFF;
     -p-text: #1B2A3A;
@@ -14,7 +16,9 @@
     -p-pink: #D6336C;
     -p-border: #DDE8EA;
     -p-empty: #ECEFF1;
+}
 
+.profile-root {
     -fx-background-color: linear-gradient(to bottom, #DFF1F3, #F7FBFB);
 }
 
@@ -160,6 +164,9 @@
 
 /* ---------- Thang mau heatmap DAT TAU (teal) ---------- */
 .heat-ship-0 { -fx-background-color: #ECEFF1; }
+/* Chữ số trong ô (màn Admin hiện số lần đặt): ô nhạt chữ tối, ô đậm chữ trắng */
+.heat-ship-1, .heat-ship-2, .heat-ship-3 { -fx-text-fill: #004D40; }
+.heat-ship-4, .heat-ship-5 { -fx-text-fill: white; }
 .heat-ship-1 { -fx-background-color: #B2DFDB; }
 .heat-ship-2 { -fx-background-color: #80CBC4; }
 .heat-ship-3 { -fx-background-color: #4DB6AC; }

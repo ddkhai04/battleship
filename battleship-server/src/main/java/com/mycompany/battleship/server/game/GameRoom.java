@@ -474,6 +474,9 @@ public class GameRoom {
     private void beginCountdown() {
         cancelPending();
         rematchRequests.clear();
+        daRoiPhong.clear();
+        playerA.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
+        playerB.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
 
         // Nếu hết 45s mà người chơi chưa đặt đủ 5 tàu, hệ thống tự động sinh ngẫu nhiên
         int requiredShips = config.getShipLengths().length;

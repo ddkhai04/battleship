@@ -1,0 +1,581 @@
+/* ==========================================================================
+   admin.css - giao dien man Quan tri (AdminGUI) "Command Center"
+   Tong mau theo theme du an: navy dam (#1B2A3A), cam san ho (#F2603F),
+   nen xanh bien nhat. Moi lop deu bat dau bang "ad-" de khong anh huong
+   cac man khac (Lobby, GameRoom, Profile).
+   Icon ve bang -fx-shape (duong SVG) tren Region -> net, doi mau bang CSS.
+   ========================================================================== */
+
+.ad-root {
+    -fx-background-color: linear-gradient(to bottom, #E6F1FA 0%, #F4F8FC 100%);
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ------------------------------------------------------------------ ICON */
+.ad-icon {
+    -fx-background-color: #4A5B70;
+    -fx-scale-shape: true;
+}
+
+.ic-users   { -fx-shape: "M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"; }
+.ic-eye     { -fx-shape: "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"; }
+.ic-grid    { -fx-shape: "M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"; }
+.ic-history { -fx-shape: "M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"; }
+.ic-refresh { -fx-shape: "M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"; }
+.ic-logout  { -fx-shape: "M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"; }
+.ic-play    { -fx-shape: "M8 5v14l11-7z"; }
+.ic-person  { -fx-shape: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"; }
+.ic-shield  { -fx-shape: "M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"; }
+.ic-target  { -fx-shape: "M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"; }
+.ic-trophy  { -fx-shape: "M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"; }
+.ic-clock   { -fx-shape: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"; }
+
+/* ------------------------------------------------------------------ HEADER */
+.ad-header {
+    -fx-background-color: linear-gradient(to right, #0B1D33 0%, #14365A 55%, #1D5C8C 100%);
+    -fx-padding: 16 28 16 28;
+    -fx-effect: dropshadow(gaussian, rgba(11, 29, 51, 0.35), 16, 0, 0, 4);
+}
+
+.ad-logo {
+    -fx-min-width: 46px;  -fx-pref-width: 46px;  -fx-max-width: 46px;
+    -fx-min-height: 46px; -fx-pref-height: 46px; -fx-max-height: 46px;
+    -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F);
+    -fx-background-radius: 14px;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.65), 16, 0.15, 0, 0);
+}
+
+.ad-logo .ad-icon { -fx-background-color: white; }
+
+.ad-brand {
+    -fx-font-family: "Titan One", "Segoe UI Black", "Segoe UI";
+    -fx-font-size: 25px;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(56, 189, 248, 0.45), 10, 0, 0, 0);
+}
+
+.ad-brand-sub {
+    -fx-text-fill: #7DD3FC;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+/* The admin goc phai */
+.ad-chip {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 30px;
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+    -fx-border-radius: 30px;
+    -fx-padding: 5 18 5 5;
+}
+
+.ad-avatar {
+    -fx-min-width: 40px;  -fx-pref-width: 40px;  -fx-max-width: 40px;
+    -fx-min-height: 40px; -fx-pref-height: 40px; -fx-max-height: 40px;
+    -fx-background-radius: 20px;
+    -fx-background-color: linear-gradient(to bottom right, #38BDF8, #2563EB);
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-border-color: rgba(255, 255, 255, 0.85);
+    -fx-border-width: 2px;
+    -fx-border-radius: 20px;
+}
+
+.ad-chip-name {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.ad-chip-role {
+    -fx-text-fill: #FCD34D;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 5;
+}
+
+.ad-chip-role .ad-icon { -fx-background-color: #FCD34D; }
+
+.ad-btn-logout {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.28);
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 16 9 16;
+    -fx-graphic-text-gap: 8;
+    -fx-cursor: hand;
+}
+
+.ad-btn-logout .ad-icon { -fx-background-color: white; }
+
+.ad-btn-logout:hover {
+    -fx-background-color: #F2603F;
+    -fx-border-color: #F2603F;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.6), 12, 0, 0, 0);
+}
+
+/* ------------------------------------------------------------------ THE SO LIEU (KPI) */
+.ad-kpi {
+    -fx-background-color: white;
+    -fx-background-radius: 16px;
+    -fx-padding: 16 18 16 18;
+    -fx-effect: dropshadow(gaussian, rgba(27, 42, 58, 0.08), 14, 0, 0, 4);
+}
+
+.ad-kpi:hover {
+    -fx-effect: dropshadow(gaussian, rgba(27, 42, 58, 0.18), 20, 0, 0, 8);
+}
+
+.ad-kpi-icon {
+    -fx-min-width: 48px;  -fx-pref-width: 48px;  -fx-max-width: 48px;
+    -fx-min-height: 48px; -fx-pref-height: 48px; -fx-max-height: 48px;
+    -fx-background-radius: 14px;
+}
+
+.ad-kpi-icon .ad-icon { -fx-background-color: white; }
+
+.ad-kpi-xanh  { -fx-background-color: linear-gradient(to bottom right, #60A5FA, #2563EB); -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.40), 10, 0, 0, 3); }
+.ad-kpi-ngoc  { -fx-background-color: linear-gradient(to bottom right, #2DD4BF, #0D9488); -fx-effect: dropshadow(gaussian, rgba(13, 148, 136, 0.40), 10, 0, 0, 3); }
+.ad-kpi-cam   { -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F); -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.40), 10, 0, 0, 3); }
+.ad-kpi-tim   { -fx-background-color: linear-gradient(to bottom right, #A78BFA, #7C3AED); -fx-effect: dropshadow(gaussian, rgba(124, 58, 237, 0.40), 10, 0, 0, 3); }
+
+.ad-kpi-so {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 27px;
+    -fx-font-weight: bold;
+}
+
+.ad-kpi-nhan {
+    -fx-text-fill: #6B7C93;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.ad-live-dot { -fx-fill: #EF4444; }
+
+/* ------------------------------------------------------------------ KHUNG CHUA TAB */
+.ad-card {
+    -fx-background-color: white;
+    -fx-background-radius: 18px;
+    -fx-effect: dropshadow(gaussian, rgba(27, 42, 58, 0.10), 22, 0, 0, 6);
+}
+
+.ad-tabs {
+    -fx-background-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-tab-min-height: 36px;
+    -fx-tab-max-height: 36px;
+}
+
+.ad-tabs > .tab-header-area {
+    -fx-padding: 14 16 4 16;
+}
+
+.ad-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: transparent;
+}
+
+.ad-tabs .tab {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0 4 0 0;
+    -fx-background-radius: 12px;
+    -fx-padding: 4 18 4 14;
+    -fx-cursor: hand;
+}
+
+.ad-tabs .tab:hover {
+    -fx-background-color: #EEF4FA;
+}
+
+.ad-tabs .tab:selected {
+    -fx-background-color: linear-gradient(to bottom, #F67B5E, #F2603F);
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.40), 10, 0, 0, 3);
+}
+
+.ad-tabs .tab .tab-label {
+    -fx-text-fill: #4A5B70;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 8;
+}
+
+.ad-tabs .tab:selected .tab-label { -fx-text-fill: white; }
+.ad-tabs .tab .ad-icon { -fx-background-color: #8696AA; }
+.ad-tabs .tab:selected .ad-icon { -fx-background-color: white; }
+
+.ad-tabs .tab .focus-indicator,
+.ad-tabs .tab:focused .focus-indicator {
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.ad-tabs > .tab-content-area {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* ------------------------------------------------------------------ THANH CONG CU MOI TAB */
+.ad-section-title {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.ad-section-sub {
+    -fx-text-fill: #8696AA;
+    -fx-font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ NUT BAM */
+.ad-btn {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10px;
+    -fx-border-radius: 10px;
+    -fx-padding: 9 18 9 16;
+    -fx-graphic-text-gap: 8;
+    -fx-cursor: hand;
+}
+
+.ad-btn:pressed { -fx-translate-y: 1; }
+
+.ad-btn-primary {
+    -fx-background-color: linear-gradient(to bottom, #F67B5E, #F2603F);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.35), 10, 0, 0, 3);
+}
+
+.ad-btn-primary:hover {
+    -fx-background-color: linear-gradient(to bottom, #F2603F, #D94A2B);
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.55), 14, 0, 0, 4);
+}
+
+.ad-btn-primary .ad-icon { -fx-background-color: white; }
+
+.ad-btn-ghost {
+    -fx-background-color: white;
+    -fx-border-color: #D5E0EB;
+    -fx-text-fill: #1B2A3A;
+}
+
+.ad-btn-ghost:hover {
+    -fx-background-color: #F1F6FB;
+    -fx-border-color: #9FB3C8;
+}
+
+.ad-btn-ghost .ad-icon { -fx-background-color: #4A5B70; }
+
+/* Nut nho trong tung dong bang */
+.ad-btn-sm {
+    -fx-font-size: 12px;
+    -fx-padding: 6 14 6 12;
+    -fx-background-radius: 9px;
+    -fx-border-radius: 9px;
+    -fx-graphic-text-gap: 6;
+}
+
+.ad-btn-live {
+    -fx-background-color: #FFF1EC;
+    -fx-text-fill: #E04A28;
+}
+
+.ad-btn-live .ad-icon { -fx-background-color: #E04A28; }
+
+.ad-btn-live:hover {
+    -fx-background-color: #F2603F;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.45), 10, 0, 0, 2);
+}
+
+.ad-btn-live:hover .ad-icon { -fx-background-color: white; }
+
+.ad-btn-teal {
+    -fx-background-color: #E6FAF7;
+    -fx-text-fill: #0F766E;
+}
+
+.ad-btn-teal .ad-icon { -fx-background-color: #0F766E; }
+
+.ad-btn-teal:hover {
+    -fx-background-color: #14B8A6;
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(20, 184, 166, 0.45), 10, 0, 0, 2);
+}
+
+.ad-btn-teal:hover .ad-icon { -fx-background-color: white; }
+
+/* ------------------------------------------------------------------ BANG DU LIEU */
+.ad-table {
+    -fx-background-color: white;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-color: #E3EBF3;
+    -fx-border-width: 1;
+    -fx-border-radius: 14px;
+    -fx-background-radius: 14px;
+    -fx-table-cell-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-selection-bar: #FFF3EE;
+    -fx-selection-bar-non-focused: #FFF3EE;
+}
+
+.ad-table .column-header-background,
+.ad-table .filler {
+    -fx-background-color: #F5F8FB;
+}
+
+.ad-table .column-header {
+    -fx-background-color: #F5F8FB;
+    -fx-border-color: transparent transparent #E3EBF3 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 42px;
+    -fx-padding: 0 14 0 14;
+}
+
+.ad-table .column-header .label {
+    -fx-text-fill: #6B7C93;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-alignment: CENTER-LEFT;
+}
+
+.ad-table .table-row-cell {
+    -fx-background-color: white;
+    -fx-cell-size: 58px;
+    -fx-table-cell-border-color: transparent;
+    -fx-border-color: transparent transparent #EEF3F8 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.ad-table .table-row-cell:hover {
+    -fx-background-color: #F4F9FF;
+}
+
+.ad-table .table-row-cell:selected {
+    -fx-background-color: #FFF3EE;
+    -fx-border-color: transparent transparent #FFD9CC transparent;
+}
+
+.ad-table .table-row-cell:empty {
+    -fx-background-color: white;
+    -fx-border-color: transparent;
+}
+
+.ad-table .table-cell {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 13px;
+    -fx-padding: 0 14 0 14;
+    -fx-alignment: CENTER-LEFT;
+}
+
+.ad-table .table-row-cell:selected .table-cell {
+    -fx-text-fill: #1B2A3A;
+}
+
+/* Thanh cuon mong, bo tron */
+.ad-table .scroll-bar:vertical,
+.ad-table .scroll-bar:horizontal,
+.ad-scroll .scroll-bar:vertical,
+.ad-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-padding: 2;
+}
+
+.ad-table .scroll-bar .thumb,
+.ad-scroll .scroll-bar .thumb {
+    -fx-background-color: #C9D6E3;
+    -fx-background-radius: 6px;
+}
+
+.ad-table .scroll-bar .thumb:hover,
+.ad-scroll .scroll-bar .thumb:hover {
+    -fx-background-color: #9FB3C8;
+}
+
+.ad-table .scroll-bar .increment-button,
+.ad-table .scroll-bar .decrement-button,
+.ad-scroll .scroll-bar .increment-button,
+.ad-scroll .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.ad-table .scroll-bar .increment-arrow,
+.ad-table .scroll-bar .decrement-arrow,
+.ad-scroll .scroll-bar .increment-arrow,
+.ad-scroll .scroll-bar .decrement-arrow {
+    -fx-padding: 0;
+}
+
+.ad-table .corner { -fx-background-color: transparent; }
+
+/* ------------------------------------------------------------------ NOI DUNG TRONG O */
+.ad-id {
+    -fx-text-fill: #9AA9BA;
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.ad-ten {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+}
+
+.ad-phu {
+    -fx-text-fill: #8696AA;
+    -fx-font-size: 11.5px;
+}
+
+/* Avatar nho trong bang - 6 mau xoay vong */
+.ad-avatar-sm {
+    -fx-min-width: 34px;  -fx-pref-width: 34px;  -fx-max-width: 34px;
+    -fx-min-height: 34px; -fx-pref-height: 34px; -fx-max-height: 34px;
+    -fx-background-radius: 17px;
+    -fx-alignment: center;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.ad-av-0 { -fx-background-color: linear-gradient(to bottom right, #60A5FA, #2563EB); }
+.ad-av-1 { -fx-background-color: linear-gradient(to bottom right, #2DD4BF, #0D9488); }
+.ad-av-2 { -fx-background-color: linear-gradient(to bottom right, #FF9472, #F2603F); }
+.ad-av-3 { -fx-background-color: linear-gradient(to bottom right, #A78BFA, #7C3AED); }
+.ad-av-4 { -fx-background-color: linear-gradient(to bottom right, #FBBF24, #D97706); }
+.ad-av-5 { -fx-background-color: linear-gradient(to bottom right, #F472B6, #DB2777); }
+
+/* Huy hieu (pill) trang thai / quyen han */
+.ad-pill {
+    -fx-background-radius: 20px;
+    -fx-padding: 4 12 4 10;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 6;
+    -fx-background-color: #EEF2F6;
+    -fx-text-fill: #475569;
+}
+
+.ad-dot { -fx-fill: #94A3B8; }
+
+.ad-pill-online  { -fx-background-color: #DCFCE7; -fx-text-fill: #15803D; }
+.ad-pill-online .ad-dot { -fx-fill: #22C55E; }
+
+.ad-pill-offline { -fx-background-color: #EEF2F6; -fx-text-fill: #64748B; }
+.ad-pill-offline .ad-dot { -fx-fill: #94A3B8; }
+
+.ad-pill-busy    { -fx-background-color: #FEF3C7; -fx-text-fill: #B45309; }
+.ad-pill-busy .ad-dot { -fx-fill: #F59E0B; }
+
+.ad-pill-live    { -fx-background-color: #FEE2E2; -fx-text-fill: #B91C1C; }
+.ad-pill-live .ad-dot { -fx-fill: #EF4444; }
+
+.ad-pill-admin   { -fx-background-color: #EDE9FE; -fx-text-fill: #6D28D9; }
+.ad-pill-admin .ad-icon { -fx-background-color: #7C3AED; }
+
+.ad-pill-user    { -fx-background-color: #E0F2FE; -fx-text-fill: #0369A1; }
+.ad-pill-user .ad-icon { -fx-background-color: #0284C7; }
+
+.ad-pill-win     { -fx-background-color: #FEF3C7; -fx-text-fill: #92400E; }
+.ad-pill-win .ad-icon { -fx-background-color: #F59E0B; }
+
+/* Diem, thang/thua, ty le thang */
+.ad-diem {
+    -fx-text-fill: #1B2A3A;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-graphic-text-gap: 6;
+}
+
+.ad-diem .ad-icon { -fx-background-color: #F59E0B; }
+
+.ad-thang { -fx-text-fill: #16A34A; -fx-font-weight: bold; -fx-font-size: 13px; }
+.ad-thua  { -fx-text-fill: #DC2626; -fx-font-weight: bold; -fx-font-size: 13px; }
+.ad-gach  { -fx-text-fill: #C0CCD8; -fx-font-size: 13px; }
+
+.ad-bar {
+    -fx-pref-height: 8px;
+    -fx-min-height: 8px;
+}
+
+.ad-bar .track {
+    -fx-background-color: #EEF2F6;
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
+}
+
+.ad-bar .bar {
+    -fx-background-color: linear-gradient(to right, #2DD4BF, #0D9488);
+    -fx-background-radius: 4px;
+    -fx-background-insets: 0;
+    -fx-padding: 4px;
+}
+
+.ad-phantram {
+    -fx-text-fill: #0F766E;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+/* Huy hieu VS giua 2 nguoi choi */
+.ad-vs {
+    -fx-background-color: linear-gradient(to bottom, #1B2A3A, #2D4560);
+    -fx-background-radius: 7px;
+    -fx-text-fill: #FCD34D;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 3 7 3 7;
+}
+
+.ad-thoigian {
+    -fx-text-fill: #6B7C93;
+    -fx-font-size: 12.5px;
+    -fx-graphic-text-gap: 6;
+}
+
+.ad-thoigian .ad-icon { -fx-background-color: #9FB3C8; }
+
+/* ------------------------------------------------------------------ TRANG TRONG (bang chua co du lieu) */
+.ad-empty-icon {
+    -fx-min-width: 72px;  -fx-pref-width: 72px;  -fx-max-width: 72px;
+    -fx-min-height: 72px; -fx-pref-height: 72px; -fx-max-height: 72px;
+    -fx-background-color: #EEF4FA;
+    -fx-background-radius: 36px;
+}
+
+.ad-empty-icon .ad-icon { -fx-background-color: #9FB3C8; }
+
+.ad-empty-title {
+    -fx-text-fill: #4A5B70;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.ad-empty-sub {
+    -fx-text-fill: #8696AA;
+    -fx-font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ TAB BIEU DO NHIET */
+.ad-scroll,
+.ad-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+/* Khung heatmap (lop .profile-heat-khung lay tu profile.css) - them vien cho noi tren nen trang */
+.ad-root .profile-heat-khung {
+    -fx-border-color: #E3EBF3;
+    -fx-border-radius: 14px;
+    -fx-effect: null;
+}
