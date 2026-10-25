@@ -25,11 +25,17 @@ public class MatchTurn implements Serializable {
     private String coordinate;
     private TurnResult result;
     private String sunkShipType;
+    private String missileType;
+    private String affectedCells;
     private Timestamp createdAt;
 
     public MatchTurn() {}
 
     public MatchTurn(int id, int matchId, int turnNumber, int playerId, String coordinate, TurnResult result, String sunkShipType, Timestamp createdAt) {
+        this(id, matchId, turnNumber, playerId, coordinate, result, sunkShipType, "SIMPLE", null, createdAt);
+    }
+
+    public MatchTurn(int id, int matchId, int turnNumber, int playerId, String coordinate, TurnResult result, String sunkShipType, String missileType, String affectedCells, Timestamp createdAt) {
         this.id = id;
         this.matchId = matchId;
         this.turnNumber = turnNumber;
@@ -37,6 +43,8 @@ public class MatchTurn implements Serializable {
         this.coordinate = coordinate;
         this.result = result;
         this.sunkShipType = sunkShipType;
+        this.missileType = missileType;
+        this.affectedCells = affectedCells;
         this.createdAt = createdAt;
     }
 
@@ -60,6 +68,12 @@ public class MatchTurn implements Serializable {
 
     public String getSunkShipType() { return sunkShipType; }
     public void setSunkShipType(String sunkShipType) { this.sunkShipType = sunkShipType; }
+
+    public String getMissileType() { return missileType; }
+    public void setMissileType(String missileType) { this.missileType = missileType; }
+
+    public String getAffectedCells() { return affectedCells; }
+    public void setAffectedCells(String affectedCells) { this.affectedCells = affectedCells; }
 
     public Timestamp getCreatedAt() { return createdAt; }
     public void setCreatedAt(Timestamp createdAt) { this.createdAt = createdAt; }

@@ -12,11 +12,14 @@ import com.mycompany.battleship.common.model.MissileType;
 import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.Ship;
 import com.mycompany.battleship.common.model.ShotResult;
+import com.mycompany.battleship.server.ClientHandler;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
@@ -37,7 +40,7 @@ public class GameRoom {
     private static final Logger LOG = Logger.getLogger(GameRoom.class.getName());
 
     private final String roomId;
-    private final PlayerState playerA;   // người mời: đi trước
+    private final PlayerState playerA;   
     private final PlayerState playerB;
     private final GameConfig config;
     private final ScheduledExecutorService scheduler;
@@ -45,7 +48,8 @@ public class GameRoom {
     private final Random rng = new Random();
     private final Set<String> rematchRequests = new HashSet<>();
     private final ChatLog chat;
-
+    private GameResult lastResult;
+    
     private GamePhase phase = GamePhase.CREATED;
     private long epoch;                       // tăng mỗi khi đổi lượt/giai đoạn -> vô hiệu hoá timer cũ
     private ScheduledFuture<?> pendingTask;
@@ -53,7 +57,82 @@ public class GameRoom {
     private long turnDeadlineMillis;
     private long matchStartMillis;
     private Runnable onClosed = () -> { };
+    
+    private int dbMatchId = -1;
+    private int playerAId = -1;
+    private int playerBId = -1;
+    private int turnCounter = 0;
+    private final java.util.List<com.mycompany.battleship.server.ClientHandler> spectators = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final com.google.gson.Gson gson = new com.google.gson.Gson();
 
+    
+    // Constructor cập nhật nhận thêm userId từ DB:
+    public GameRoom(String roomId, int dbMatchId, int playerAId, String inviterId, int playerBId, String inviteeId, 
+                    GameConfig config, ScheduledExecutorService scheduler, GameEventListener listener) {
+        this.roomId = roomId;
+        this.dbMatchId = dbMatchId;
+        this.playerAId = playerAId;
+        this.playerBId = playerBId;
+        this.config = config;
+        this.scheduler = scheduler;
+        this.listener = listener;
+        this.playerA = new PlayerState(inviterId, config);
+        this.playerB = new PlayerState(inviteeId, config);
+        this.chat = new ChatLog(config);
+    }
+
+    // Hàm thêm / bớt Spectator (Admin)
+    public void addSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
+        spectators.add(adminHandler);
+        broadcastGodViewToSpectators();
+    }
+
+    public void removeSpectator(com.mycompany.battleship.server.ClientHandler adminHandler) {
+        spectators.remove(adminHandler);
+    }
+
+    // Phát toàn bộ vị trí tàu của 2 bên cho Spectator (God View)
+        public void broadcastGodViewToSpectators() {
+        if (spectators.isEmpty()) return;
+        Board b1 = playerA.board();
+        Board b2 = playerB.board();
+        if (b1 == null || b2 == null) return;
+
+        // Tạo ma trận hiển thị: 'S'=Tàu nguyên, 'X'=Tàu bị bắn trúng, 'o'=Bắn hụt, '.'=Nước biển
+        char[][] grid1 = new char[10][10];
+        char[][] grid2 = new char[10][10];
+
+        for (int r = 0; r < 10; r++) {
+            for (int c = 0; c < 10; c++) {
+                Point p = new Point(r, c);
+                if (b1.hasShip(p)) grid1[r][c] = b1.isMarked(p) ? 'X' : 'S';
+                else grid1[r][c] = b1.isMarked(p) ? 'o' : '.';
+
+                if (b2.hasShip(p)) grid2[r][c] = b2.isMarked(p) ? 'X' : 'S';
+                else grid2[r][c] = b2.isMarked(p) ? 'o' : '.';
+            }
+        }
+        
+        Map<String, Object> godData = new HashMap<>();
+        godData.put("roomId", roomId);
+        godData.put("player1", playerA.id());
+        godData.put("player2", playerB.id());
+        godData.put("currentTurn", currentTurnId);
+        godData.put("phase", phase.name());
+        godData.put("grid1", grid1);
+        godData.put("grid2", grid2);
+
+        if (lastResult != null && phase == GamePhase.FINISHED) {
+            godData.put("winner", lastResult.getWinnerId());
+            godData.put("loser", lastResult.getLoserId());
+            godData.put("reason", lastResult.getReason().name());
+        }
+        com.mycompany.battleship.common.model.MessageDTO msg = 
+            new com.mycompany.battleship.common.model.MessageDTO("SPECTATE_UPDATE", godData);
+        for (ClientHandler sp : spectators) {
+            sp.sendMessage(msg);
+        }
+    }
     public GameRoom(String roomId, String inviterId, String inviteeId, GameConfig config,
                     ScheduledExecutorService scheduler, GameEventListener listener) {
         if (inviterId == null || inviteeId == null || inviterId.equals(inviteeId)) {
@@ -177,7 +256,61 @@ public class GameRoom {
             result.setNextTurnPlayerId(next);
             notifyListener(l -> l.onShotResolved(this, result));
             startTurn(next);
+        }        
+        turnCounter++;
+        if (dbMatchId > 0) {
+            com.mycompany.battleship.server.dao.MatchDAO dao = new com.mycompany.battleship.server.dao.MatchDAO();
+            int shooterId = playerId.equals(playerA.id()) ? playerAId : playerBId;
+
+            // Tọa độ tâm hiển thị (Đạn thường, Chữ thập BIG, Nguyên tử NUCLEAR đều có target; riêng RAIN thì ghi "RAIN")
+            String coordStr;
+            if (target != null) {
+                char rowChar = (char) ('A' + target.getRow());
+                coordStr = rowChar + String.valueOf(target.getCol() + 1);
+            } else {
+                coordStr = "RAIN";
+            }
+
+            // Gom toàn bộ các ô thực tế bị bắn trong lượt này (1 ô, 5 ô chữ thập, 13 ô nuke, hoặc 4-7 ô rain)
+            com.google.gson.JsonArray affectedArr = new com.google.gson.JsonArray();
+            String sunkShipType = null;
+            boolean anyHit = false;
+
+            for (ShotResult.CellResult cell : result.getCells()) {
+                Point p = cell.getPoint();
+                char rChar = (char) ('A' + p.getRow());
+                String cellCoord = rChar + String.valueOf(p.getCol() + 1);
+
+                String cellRes = "MISS";
+                if (cell.getSunkShip() != null) {
+                    cellRes = "SUNK";
+                    sunkShipType = "SHIP_" + cell.getSunkShip().getLength();
+                    anyHit = true;
+                } else if (cell.isHit()) {
+                    cellRes = "HIT";
+                    anyHit = true;
+                }
+
+                com.google.gson.JsonObject cellObj = new com.google.gson.JsonObject();
+                cellObj.addProperty("coord", cellCoord);
+                cellObj.addProperty("row", p.getRow());
+                cellObj.addProperty("col", p.getCol());
+                cellObj.addProperty("result", cellRes);
+                affectedArr.add(cellObj);
+
+                // Cập nhật thống kê Heatmap cho từng ô bị nổ
+                dao.recordShotStats(shooterId, cellCoord, cell.isHit());
+            }
+
+            String resType = (sunkShipType != null) ? "SUNK" : ((directHit || anyHit) ? "HIT" : "MISS");
+            String affectedJson = gson.toJson(affectedArr);
+
+            dao.saveMatchTurn(dbMatchId, turnCounter, shooterId, coordStr, resType, sunkShipType, type.name(), affectedJson);
         }
+
+        // Cập nhật màn hình cho các Admin đang xem
+        broadcastGodViewToSpectators();
+        
         return result;
     }
 
@@ -265,7 +398,16 @@ public class GameRoom {
     private void beginPlaying() {
         phase = GamePhase.PLAYING;
         matchStartMillis = System.currentTimeMillis();
+
+        // Lưu vị trí tàu 2 người chơi vào DB match_boards
+        if (dbMatchId > 0) {
+            com.mycompany.battleship.server.dao.MatchDAO dao = new com.mycompany.battleship.server.dao.MatchDAO();
+            dao.saveMatchBoard(dbMatchId, playerAId, gson.toJson(playerA.board().getShips()));
+            dao.saveMatchBoard(dbMatchId, playerBId, gson.toJson(playerB.board().getShips()));
+        }
+
         startTurn(playerA.id());
+        broadcastGodViewToSpectators();
     }
 
     private void startTurn(String playerId) {
@@ -286,13 +428,15 @@ public class GameRoom {
     }
 
     private void finish(String winnerId, String loserId, GameResult.Reason reason) {
-        cancelPending();
-        epoch++;
-        phase = GamePhase.FINISHED;
-        currentTurnId = null;
-        GameResult result = new GameResult(roomId, winnerId, loserId, reason, matchStartMillis, System.currentTimeMillis());
-        notifyListener(l -> l.onGameOver(this, result));
-    }
+    cancelPending();
+    epoch++;
+    phase = GamePhase.FINISHED;
+    currentTurnId = null;
+    GameResult result = new GameResult(roomId, winnerId, loserId, reason, matchStartMillis, System.currentTimeMillis());
+    this.lastResult = result;
+    broadcastGodViewToSpectators(); 
+    notifyListener(l -> l.onGameOver(this, result));
+}
 
     private void close() {
         if (phase == GamePhase.CLOSED) return;

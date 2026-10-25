@@ -121,6 +121,7 @@ public class ServerGameEventListener implements GameEventListener {
         sendToBoth(room, new MessageDTO("TURN_START", payload));
     }
 
+
     @Override
     public void onShotResolved(GameRoom room, ShotResult result) {
         sendToBoth(room, new MessageDTO("SHOT_RESULT", result));
@@ -130,7 +131,12 @@ public class ServerGameEventListener implements GameEventListener {
         if (hA != null) hA.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviterId())));
         if (hB != null) hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
 
-        // Lưu thông tin lượt bắn vào match_turns và cập nhật thống kê tọa độ/độ chính xác
+        // 1. Cập nhật ngay lập tức giao diện giám sát trực tiếp cho Admin (God View)
+        try {
+            room.broadcastGodViewToSpectators();
+        } catch (Exception ignored) {}
+
+        // 2. Lưu thông tin lượt bắn (kèm loại đạn và TOÀN BỘ các ô trúng/trượt) vào match_turns
         Integer matchId = roomMatchIdMap.get(room.getRoomId());
         if (matchId != null) {
             User shooter = userDAO.checkLogin(result.getShooterId());
@@ -138,25 +144,76 @@ public class ServerGameEventListener implements GameEventListener {
                 int turnNumber = roomTurnCountMap.getOrDefault(room.getRoomId(), 1);
                 roomTurnCountMap.put(room.getRoomId(), turnNumber + 1);
 
-                // 1. Toạ độ bắn (với đạn mưa RAIN thì target là null)
+                // Toạ độ bắn (với đạn mưa RAIN thì target là null)
                 String coordinate = (result.getTarget() != null) ? formatCoordinate(result.getTarget()) : "RAIN";
-                // 2. Kiểm tra bắn trúng (trúng trực tiếp hoặc có ít nhất 1 ô trong vùng nổ trúng tàu)
-                boolean isHit = result.isDirectHit() || result.getCells().stream().anyMatch(ShotResult.CellResult::isHit);
-                // 3. Kiểm tra tàu chìm thông qua danh sách getSunkShips()
-                java.util.List<com.mycompany.battleship.common.model.Ship> sunkShips = result.getSunkShips();
-                boolean isSunk = !sunkShips.isEmpty();
-                String resultStr = isSunk ? "SUNK" : (isHit ? "HIT" : "MISS");
-                // 4. Lấy loại tàu bị chìm nếu có
+
+                // Loại đạn đã sử dụng: SIMPLE, BIG, NUCLEAR, RAIN
+                String missileTypeStr = (result.getMissile() != null) ? result.getMissile().name() : "SIMPLE";
+
+                // Duyệt qua TẤT CẢ các ô bị nổ trong phát bắn này (cả ô trúng lẫn ô trượt)
+                com.google.gson.JsonArray affectedArr = new com.google.gson.JsonArray();
+                boolean anyHit = false;
                 String sunkType = null;
-                if (isSunk) {
-                    com.mycompany.battleship.common.model.Ship ship = sunkShips.get(0);
-                    // Dùng ship.toString() để an toàn với mọi class/enum Ship, 
-                    // hoặc ship.getType().name() / ship.getName() nếu Ship có getter tương ứng
-                    sunkType = ship.toString();
+
+                for (ShotResult.CellResult cell : result.getCells()) {
+                    Point p = cell.getPoint();
+                    String cellCoord = formatCoordinate(p);
+
+                    String cellRes = "MISS";
+                    if (cell.getSunkShip() != null) {
+                        cellRes = "SUNK";
+                        anyHit = true;
+                        int shipSize = (cell.getSunkShip().getCells() != null) ? cell.getSunkShip().getCells().size() : 3;
+                        sunkType = "SHIP_" + shipSize;
+                    } else if (cell.isHit()) {
+                        cellRes = "HIT";
+                        anyHit = true;
+                    }
+
+                    com.google.gson.JsonObject cellObj = new com.google.gson.JsonObject();
+                    cellObj.addProperty("coord", cellCoord);
+                    cellObj.addProperty("row", p.getRow());
+                    cellObj.addProperty("col", p.getCol());
+                    cellObj.addProperty("result", cellRes);
+                    affectedArr.add(cellObj);
+
+                    // Ghi nhận thống kê Heatmap cho từng ô bị bắn
+                    try {
+                        matchDAO.recordShotStats(shooter.getId(), cellCoord, cell.isHit());
+                    } catch (Exception ignored) {}
                 }
-                // 5. Lưu vào database
-                matchDAO.saveMatchTurn(matchId, turnNumber, shooter.getId(), coordinate, resultStr, sunkType);
-                matchDAO.recordShotStats(shooter.getId(), coordinate, isHit);
+
+                // Kiểm tra thêm danh sách tàu chìm tổng hợp (nếu có)
+                java.util.List<com.mycompany.battleship.common.model.Ship> sunkShips = result.getSunkShips();
+                boolean isSunk = (sunkType != null) || (sunkShips != null && !sunkShips.isEmpty());
+                if (isSunk && sunkType == null) {
+                    com.mycompany.battleship.common.model.Ship ship = sunkShips.get(0);
+                    int shipSize = (ship.getCells() != null) ? ship.getCells().size() : 3;
+                    sunkType = "SHIP_" + shipSize;
+                }
+                if (sunkType != null && sunkType.length() > 20) {
+                    sunkType = sunkType.substring(0, 20);
+                }
+
+                boolean isHit = result.isDirectHit() || anyHit;
+                String resultStr = isSunk ? "SUNK" : (isHit ? "HIT" : "MISS");
+                String affectedCellsJson = gson.toJson(affectedArr);
+
+                try {
+                    matchDAO.saveMatchTurn(
+                            matchId,
+                            turnNumber,
+                            shooter.getId(),
+                            coordinate,
+                            resultStr,
+                            sunkType,
+                            missileTypeStr,
+                            affectedCellsJson
+                    );
+                } catch (Exception e) {
+                    System.err.println("Lỗi lưu lượt bắn vào Database: " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
         }
     }

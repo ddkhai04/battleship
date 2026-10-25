@@ -108,6 +108,10 @@ public class GameRoomGUI extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        
+        LobbyGUI.dongSanhChoHienTai();
+        
+        
         BorderPane gameLayout = createRootLayout();
         countdownOverlay = createCountdownOverlayContainer();
         resultOverlay = createResultOverlayContainer();

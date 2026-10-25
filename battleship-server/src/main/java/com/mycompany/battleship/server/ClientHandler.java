@@ -8,6 +8,7 @@ import com.mycompany.battleship.common.model.MissileType;
 import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.User;
 import com.mycompany.battleship.common.model.UserDTO;
+import com.mycompany.battleship.server.dao.MatchDAO;
 import com.mycompany.battleship.server.dao.UserDAO;
 import com.mycompany.battleship.server.game.GameRoom;
 import java.io.BufferedReader;
@@ -74,6 +75,23 @@ public class ClientHandler implements Runnable {
                         break;
                     case "GET_ADMIN_DATA":
                         handleGetAdminData();
+                        break;
+                    case "GET_REPLAY_DATA":
+                        System.out.println(">>> [SERVER] Nhan duoc yeu cau GET_REPLAY_DATA tu Admin!");
+                        if (payload != null && payload.containsKey("matchId")) {
+                            int matchId = ((Number) payload.get("matchId")).intValue();
+                            handleGetReplayData(matchId);
+                        } else {
+                            System.err.println(">>> [SERVER] Payload thieu matchId!");
+                        }
+                        break;
+                    case "SPECTATE_JOIN":
+                        if (payload != null && payload.containsKey("roomId")) {
+                            handleSpectateJoin((String) payload.get("roomId"));
+                        }
+                        break;
+                    case "SPECTATE_LEAVE":
+                        handleSpectateLeave();
                         break;
                     case "REGISTER":
                         if (payload != null) handleRegister((String) payload.get("username"), (String) payload.get("password"));
@@ -186,9 +204,51 @@ public class ClientHandler implements Runnable {
         Map<String, Object> responseData = new HashMap<>();
         responseData.put("users", userList);
         responseData.put("matches", matchList);
+        // Bổ sung thêm vào cuối handleGetAdminData() trước khi sendMessage:
+        MatchDAO matchDAO = new com.mycompany.battleship.server.dao.MatchDAO();
+        responseData.put("finishedMatches", matchDAO.getFinishedMatchesForAdmin());
 
         sendMessage(new MessageDTO("ADMIN_DATA", responseData));
     }
+    
+    
+        private void handleGetReplayData(int matchId) {
+            try {
+                com.mycompany.battleship.server.dao.MatchDAO dao = new com.mycompany.battleship.server.dao.MatchDAO();
+                java.util.Map<Integer, String> boards = dao.getMatchBoards(matchId);
+                List<com.mycompany.battleship.common.model.MatchTurn> turns = dao.getMatchTurns(matchId);
+                Map<String, Object> matchInfo = dao.getMatchById(matchId);
+
+                java.util.Map<String, Object> res = new java.util.HashMap<>();
+                res.put("matchId", matchId);
+                res.put("matchInfo", matchInfo);
+                res.put("boards", boards);
+                res.put("turns", turns);
+
+                sendMessage(new MessageDTO("REPLAY_DATA", res));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void handleSpectateJoin(String roomId) {
+            if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+                sendMessage(new MessageDTO("ERROR", "Chỉ Admin mới có quyền theo dõi trận đấu!"));
+                return;
+            }
+            GameRoom room = BattleshipServer.gameManager.findByRoomId(roomId);
+            if (room != null) {
+                room.addSpectator(this);
+            } else {
+                sendMessage(new MessageDTO("ERROR", "Phòng đấu không tồn tại hoặc đã kết thúc!"));
+            }
+        }
+
+        private void handleSpectateLeave() {
+            for (GameRoom room : BattleshipServer.gameManager.getAllRooms()) {
+                room.removeSpectator(this);
+            }
+        }
     
     private void handleGetHeatmap(Map<String, Object> payload) {
         if (this.currentUser == null) return;
