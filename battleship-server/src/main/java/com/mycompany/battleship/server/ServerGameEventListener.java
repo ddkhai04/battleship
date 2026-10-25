@@ -249,19 +249,25 @@ public class ServerGameEventListener implements GameEventListener {
         ClientHandler winnerHandler = getHandler(result.getWinnerId());
         ClientHandler loserHandler = getHandler(result.getLoserId());
 
+        long deadlineMillis = System.currentTimeMillis() + 30000;
+
         if (winnerHandler != null) {
             Map<String, Object> winPayload = new HashMap<>();
             winPayload.put("outcome", "WIN");
-            winPayload.put("reason", result.getReason());
+            winPayload.put("reason", result.getReason().name());
             winPayload.put("result", result);
+            winPayload.put("rematchAvailable", true);
+            winPayload.put("rematchDeadlineMillis", deadlineMillis);
             winnerHandler.sendMessage(new MessageDTO("GAME_OVER", winPayload));
         }
 
         if (loserHandler != null) {
             Map<String, Object> losePayload = new HashMap<>();
             losePayload.put("outcome", "LOSE");
-            losePayload.put("reason", result.getReason());
+            losePayload.put("reason", result.getReason().name());
             losePayload.put("result", result);
+            losePayload.put("rematchAvailable", true);
+            losePayload.put("rematchDeadlineMillis", deadlineMillis);
             loserHandler.sendMessage(new MessageDTO("GAME_OVER", losePayload));
         }
 
@@ -283,25 +289,22 @@ public class ServerGameEventListener implements GameEventListener {
             } else {
                 matchDAO.saveMatchResult(winnerUser.getId(), loserUser.getId(), winnerUser.getId(), loserUser.getId(), GameResult.WIN_POINTS, durationSeconds);
             }
-
-            userDAO.updateStatus(winnerUser.getId(), "ONLINE");
-            userDAO.updateStatus(loserUser.getId(), "ONLINE");
         }
 
+        // CHÚ Ý: Đã xóa toàn bộ các lệnh setStatus("ONLINE") ở đây
+
         if (winnerHandler != null && winnerHandler.getCurrentUser() != null) {
-            winnerHandler.getCurrentUser().setStatus("ONLINE");
             winnerHandler.getCurrentUser().setScore(winnerHandler.getCurrentUser().getScore() + GameResult.WIN_POINTS);
             winnerHandler.getCurrentUser().setWins(winnerHandler.getCurrentUser().getWins() + 1);
         }
         if (loserHandler != null && loserHandler.getCurrentUser() != null) {
-            loserHandler.getCurrentUser().setStatus("ONLINE");
             loserHandler.getCurrentUser().setScore(Math.max(0, loserHandler.getCurrentUser().getScore() - GameResult.WIN_POINTS));
             loserHandler.getCurrentUser().setLosses(loserHandler.getCurrentUser().getLosses() + 1);
         }
 
         BattleshipServer.broadcastLobbyList();
     }
-
+    
     @Override
     public void onRematchRequested(GameRoom room, String fromPlayerId) {
         String otherId = fromPlayerId.equals(room.getInviterId()) ? room.getInviteeId() : room.getInviterId();
@@ -331,15 +334,15 @@ public class ServerGameEventListener implements GameEventListener {
 
     @Override
     public void onPlayerLeft(GameRoom room, String playerId) {
-        if (room.getPhase() != com.mycompany.battleship.common.model.GamePhase.FINISHED) {
+        // Hủy trận nếu thoát khi đang đặt tàu / đếm ngược
+        if (room.getPhase() == com.mycompany.battleship.common.model.GamePhase.SETUP || 
+            room.getPhase() == com.mycompany.battleship.common.model.GamePhase.COUNTDOWN) {
             Integer matchId = roomMatchIdMap.get(room.getRoomId());
-            Long startTime = roomStartTimeMap.get(room.getRoomId());
-            if (matchId != null && startTime != null) {
-                int durationSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
-                matchDAO.abortMatch(matchId, durationSeconds);
+            if (matchId != null) {
+                matchDAO.abortMatch(matchId, 0);
             }
-            sendToBoth(room, new MessageDTO("PLAYER_LEFT", playerId));
         }
+        sendToBoth(room, new MessageDTO("OPPONENT_LEFT", playerId));
     }
 
     @Override
@@ -365,6 +368,27 @@ public class ServerGameEventListener implements GameEventListener {
         roomMatchIdMap.remove(room.getRoomId());
         roomStartTimeMap.remove(room.getRoomId());
         roomTurnCountMap.remove(room.getRoomId());
-        sendToBoth(room, new MessageDTO("ROOM_CLOSED", null));
+
+        // Nguyên tắc 3: Đặt trạng thái ONLINE duy nhất 1 lần khi phòng chính thức đóng
+        String p1Id = room.getInviterId();
+        String p2Id = room.getInviteeId();
+
+        User u1 = userDAO.checkLogin(p1Id);
+        if (u1 != null) userDAO.updateStatus(u1.getId(), "ONLINE");
+
+        User u2 = userDAO.checkLogin(p2Id);
+        if (u2 != null) userDAO.updateStatus(u2.getId(), "ONLINE");
+
+        ClientHandler h1 = getHandler(p1Id);
+        if (h1 != null && h1.getCurrentUser() != null) h1.getCurrentUser().setStatus("ONLINE");
+
+        ClientHandler h2 = getHandler(p2Id);
+        if (h2 != null && h2.getCurrentUser() != null) h2.getCurrentUser().setStatus("ONLINE");
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("reason", room.getCloseReason());
+        sendToBoth(room, new MessageDTO("ROOM_CLOSED", payload));
+
+        BattleshipServer.broadcastLobbyList();
     }
 }

@@ -39,7 +39,13 @@ public class GameRoom {
     private final ScheduledExecutorService scheduler;
     private final GameEventListener listener;
     private final Random rng = new Random();
+    
+    // Nguyên tắc 2: Theo dõi quyết định sau trận
     private final Set<String> rematchRequests = new HashSet<>();
+    private final Set<String> leaveRequests = new HashSet<>();
+    private String nextFirstTurnId; // Người đi trước ở ván kế tiếp
+    private String closeReason;     // Lý do đóng phòng
+    
     private final ChatLog chat;
     private GameResult lastResult;
 
@@ -140,6 +146,10 @@ public class GameRoom {
     public String getInviteeId() { return playerB.id(); }
     public synchronized GamePhase getPhase() { return phase; }
     public synchronized String getCurrentTurnPlayerId() { return currentTurnId; }
+    
+    // Thêm getter để lấy lý do phòng đóng phục vụ cho thông báo phía Client
+    public synchronized String getCloseReason() { return closeReason != null ? closeReason : "CLOSED"; }
+    
     public synchronized boolean isMember(String playerId) {
         return playerA.id().equals(playerId) || playerB.id().equals(playerId);
     }
@@ -237,12 +247,17 @@ public class GameRoom {
     /** Người chơi bấm "Tái đấu". Khi cả hai đã bấm thì bắt đầu giai đoạn đặt tàu 45s cho ván mới. */
     public synchronized void requestRematch(String playerId) {
         stateOf(playerId);
-        if (phase == GamePhase.CLOSED) {
-            throw new GameException(GameException.Code.ROOM_CLOSED, "Đối thủ đã rời phòng hoặc offline");
-        }
+        if (phase == GamePhase.CLOSED) return;
         if (phase != GamePhase.FINISHED) throw new GameException(GameException.Code.INVALID_STATE, "Trận chưa kết thúc");
 
         if (!rematchRequests.add(playerId)) return;
+        
+        // Nguyên tắc 2: Đã có người rời đi thì từ chối tái đấu
+        if (leaveRequests.size() > 0) {
+            close("DECLINED");
+            return;
+        }
+
         if (rematchRequests.size() == 2) {
             beginSetup();
         } else {
@@ -253,15 +268,20 @@ public class GameRoom {
     public synchronized void leave(String playerId) {
         if (phase == GamePhase.CLOSED || !isMember(playerId)) return;
         PlayerState leaver = stateOf(playerId);
-        if (phase == GamePhase.PLAYING || phase == GamePhase.SETUP || phase == GamePhase.COUNTDOWN) {
+        
+        if (phase == GamePhase.PLAYING) {
             finish(opponentOf(leaver).id(), leaver.id(), GameResult.Reason.LEFT);
+            close("LEFT_ROOM");
+        } else if (phase == GamePhase.SETUP || phase == GamePhase.COUNTDOWN) {
             notifyListener(l -> l.onPlayerLeft(this, playerId));
-            close();
+            close("ABORTED"); // Nguyên tắc 4: Hủy trận lúc đặt tàu
         } else if (phase == GamePhase.FINISHED) {
-            rematchRequests.remove(playerId);
+            leaveRequests.add(playerId); // Ghi nhận yêu cầu rời phòng
+            notifyListener(l -> l.onPlayerLeft(this, playerId));
+            close("DECLINED"); // Đóng vì từ chối/bỏ đi khi đang chờ quyết định
         } else {
             notifyListener(l -> l.onPlayerLeft(this, playerId));
-            close();
+            close("LEFT_ROOM");
         }
     }
 
@@ -430,7 +450,7 @@ public class GameRoom {
     private void beginSetup() {
         cancelPending();
         rematchRequests.clear();
-        // Khởi tạo bàn cờ trống để Admin vào xem thấy bàn trống và cập nhật từng tàu khi người chơi đặt
+        leaveRequests.clear();
         playerA.resetForNewMatch(new Board());
         playerB.resetForNewMatch(new Board());
         currentTurnId = null;
@@ -494,7 +514,9 @@ public class GameRoom {
             dao.saveMatchBoard(dbMatchId, playerBId, gson.toJson(playerB.board().getShips()));
         }
 
-        startTurn(playerA.id());
+        // Ưu tiên người thua ở ván trước đi trước (Tái đấu)
+        String firstPlayerId = (nextFirstTurnId != null) ? nextFirstTurnId : playerA.id();
+        startTurn(firstPlayerId);
         broadcastGodViewToSpectators();
     }
 
@@ -516,27 +538,49 @@ public class GameRoom {
     }
 
     private void finish(String winnerId, String loserId, GameResult.Reason reason) {
+        // Nguyên tắc 1: Kết quả chỉ chốt 1 lần
+        if (phase == GamePhase.FINISHED || phase == GamePhase.CLOSED) return;
+
         cancelPending();
-        epoch++;
+        long myEpoch = ++epoch;
         phase = GamePhase.FINISHED;
         currentTurnId = null;
+        
         GameResult result = new GameResult(roomId, winnerId, loserId, reason, matchStartMillis, System.currentTimeMillis());
         this.lastResult = result;
+        this.nextFirstTurnId = loserId; // Ghi nhớ người thua đi trước cho ván sau
+        
         broadcastGodViewToSpectators();
         notifyListener(l -> l.onGameOver(this, result));
+
+        // Nguyên tắc 1: Hẹn giờ 30s giải tán phòng (Lý do IDLE) nếu không ai thao tác
+        schedule(() -> {
+            synchronized (GameRoom.this) {
+                if (phase == GamePhase.FINISHED && epoch == myEpoch) {
+                    close("IDLE");
+                }
+            }
+        }, 30000);
     }
 
-    private void close() {
+    private void close(String reasonStr) {
         if (phase == GamePhase.CLOSED) return;
         cancelPending();
         epoch++;
         phase = GamePhase.CLOSED;
+        this.closeReason = reasonStr;
+        
         notifyListener(l -> l.onRoomClosed(this));
         try {
             onClosed.run();
         } catch (RuntimeException ex) {
             LOG.log(Level.WARNING, "onClosed lỗi", ex);
         }
+    }
+    
+    // Tương thích với các logic cũ gọi close() không tham số
+    private void close() {
+        close("CLOSED");
     }
 
     private List<Point> blastCells(MissileType type, Point center) {

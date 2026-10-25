@@ -41,15 +41,13 @@ public class MatchDAO {
     /**
      * Lưu kết quả trận đấu trọn gói (dành cho luồng lưu nhanh cả trận một lần)
      */
-    public boolean saveMatchResult(int player1Id, int player2Id, int winnerId, int loserId, int scoreDelta) {
-        return saveMatchResult(player1Id, player2Id, winnerId, loserId, scoreDelta, 0);
-    }
+   
 
     public boolean saveMatchResult(int player1Id, int player2Id, int winnerId, int loserId, int scoreDelta, int durationSeconds) {
         String sqlInsertMatch = "INSERT INTO matches (player1_id, player2_id, winner_id, loser_id, status, duration_seconds) "
                 + "VALUES (?, ?, ?, ?, 'FINISHED', ?)";
         String sqlUpdateWinner = "UPDATE users SET score = score + ?, wins = wins + 1 WHERE id = ?";
-        String sqlUpdateLoser = "UPDATE users SET score = GREATEST(0, score - ?), losses = losses + 1 WHERE id = ?";
+        String sqlUpdateLoser = "UPDATE users SET score = GREATEST(0, score - 1), losses = losses + 1 WHERE id = ?";
 
         String sqlWinnerStreak = "INSERT INTO user_combat_stats (user_id, current_win_streak, longest_win_streak, current_loss_streak, longest_loss_streak) "
                 + "VALUES (?, 1, 1, 0, 0) "
