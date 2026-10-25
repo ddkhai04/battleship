@@ -265,4 +265,4 @@ public class ServerGameEventListener implements GameEventListener {
         roomTurnCountMap.remove(room.getRoomId());
         sendToBoth(room, new MessageDTO("ROOM_CLOSED", null));
     }
-}
+}
