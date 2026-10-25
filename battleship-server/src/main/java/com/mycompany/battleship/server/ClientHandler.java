@@ -119,6 +119,9 @@ public class ClientHandler implements Runnable {
                     case "INVITE_REJECT":
                         if (payload != null) handleReject((String) payload.get("challenger"));
                         break;
+                    case "PLACE_SHIPS":
+                        if (payload != null) handlePlaceShips(payload);
+                        break;
                     case "FIRE":
                         if (payload != null) handleFire(payload);
                         break;
@@ -578,7 +581,42 @@ public class ClientHandler implements Runnable {
             room.leave(this.loggedInUsername);
         }
     }
+    @SuppressWarnings("unchecked")
+    private void handlePlaceShips(Map<String, Object> payload) {
+        if (this.loggedInUsername == null) return;
+        GameRoom room = BattleshipServer.gameManager.findByPlayer(this.loggedInUsername);
+        if (room == null) return;
 
+        try {
+            boolean ready = payload.containsKey("ready") && Boolean.TRUE.equals(payload.get("ready"));
+            List<List<Point>> shipLists = new ArrayList<>();
+
+            Object rawShips = payload.get("ships");
+            if (rawShips instanceof List<?>) {
+                for (Object shipObj : (List<?>) rawShips) {
+                    if (shipObj instanceof List<?>) {
+                        List<Point> cells = new ArrayList<>();
+                        for (Object ptObj : (List<?>) shipObj) {
+                            if (ptObj instanceof Map<?, ?>) {
+                                Map<String, Object> ptMap = (Map<String, Object>) ptObj;
+                                int r = ((Number) ptMap.get("row")).intValue();
+                                int c = ((Number) ptMap.get("col")).intValue();
+                                cells.add(new Point(r, c));
+                            }
+                        }
+                        if (!cells.isEmpty()) {
+                            shipLists.add(cells);
+                        }
+                    }
+                }
+            }
+            room.placeShips(this.loggedInUsername, shipLists, ready);
+        } catch (GameException e) {
+            sendMessage(new MessageDTO("GAME_ERROR", e.getMessage()));
+        } catch (Exception e) {
+            sendMessage(new MessageDTO("GAME_ERROR", "Dữ liệu đặt tàu không hợp lệ!"));
+        }
+    }
     // --- CÁC HÀM GỬI TIN NHẮN TỚI CLIENT ---
 
     // Hàm mới: Gửi tin nhắn qua cấu trúc MessageDTO (JSON)
