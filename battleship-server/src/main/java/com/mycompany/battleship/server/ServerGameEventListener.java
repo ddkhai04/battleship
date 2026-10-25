@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.mycompany.battleship.common.model.ChatMessage;
 import com.mycompany.battleship.common.model.EmoteEvent;
 import com.mycompany.battleship.common.model.GameResult;
+import com.mycompany.battleship.common.model.GameView;
 import com.mycompany.battleship.common.model.MessageDTO;
 import com.mycompany.battleship.common.model.Point;
 import com.mycompany.battleship.common.model.ShotResult;
@@ -13,7 +14,9 @@ import com.mycompany.battleship.server.dao.UserDAO;
 import com.mycompany.battleship.server.game.GameEventListener;
 import com.mycompany.battleship.server.game.GameRoom;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -44,6 +47,20 @@ public class ServerGameEventListener implements GameEventListener {
         return "" + rowChar + (p.getCol() + 1);
     }
 
+    // Lấy danh sách tọa độ các ô có tàu của một người chơi (ví dụ "A1", "B5") để ghi vào heatmap đặt tàu
+    private List<String> layToaDoOTau(GameView view) {
+        List<String> danhSach = new ArrayList<>();
+        for (int r = 0; r < view.ownGrid.length; r++) {
+            for (int c = 0; c < view.ownGrid[r].length; c++) {
+                char o = view.ownGrid[r][c];
+                if (o == 'S' || o == 'X') {   // S = có tàu, X = tàu đã bị bắn trúng
+                    danhSach.add(formatCoordinate(new Point(r, c)));
+                }
+            }
+        }
+        return danhSach;
+    }
+
     @Override
     public void onMatchPrepared(GameRoom room) {
         ClientHandler hA = getHandler(room.getInviterId());
@@ -64,6 +81,10 @@ public class ServerGameEventListener implements GameEventListener {
                 try {
                     matchDAO.saveMatchBoard(matchId, p1.getId(), gson.toJson(room.viewFor(room.getInviterId())));
                     matchDAO.saveMatchBoard(matchId, p2.getId(), gson.toJson(room.viewFor(room.getInviteeId())));
+
+                    // 3. Ghi các ô đặt tàu của 2 người chơi vào user_ship_placements (dữ liệu cho heatmap đặt tàu)
+                    matchDAO.recordShipPlacements(p1.getId(), layToaDoOTau(room.viewFor(room.getInviterId())));
+                    matchDAO.recordShipPlacements(p2.getId(), layToaDoOTau(room.viewFor(room.getInviteeId())));
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -244,4 +265,4 @@ public class ServerGameEventListener implements GameEventListener {
         roomTurnCountMap.remove(room.getRoomId());
         sendToBoth(room, new MessageDTO("ROOM_CLOSED", null));
     }
-}
+}
