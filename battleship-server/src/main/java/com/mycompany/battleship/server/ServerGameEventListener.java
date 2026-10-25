@@ -70,6 +70,17 @@ public class ServerGameEventListener implements GameEventListener {
         User p2 = userDAO.checkLogin(room.getInviteeId());
 
         if (p1 != null && p2 != null) {
+            // Cập nhật trạng thái IN_GAME cho cả 2 người chơi (đặc biệt quan trọng khi Tái đấu)
+            userDAO.updateStatus(p1.getId(), "IN_GAME");
+            userDAO.updateStatus(p2.getId(), "IN_GAME");
+            if (hA != null && hA.getCurrentUser() != null) {
+                hA.getCurrentUser().setStatus("IN_GAME");
+            }
+            if (hB != null && hB.getCurrentUser() != null) {
+                hB.getCurrentUser().setStatus("IN_GAME");
+            }
+            BattleshipServer.broadcastLobbyList();
+
             // 1. Tạo match ở trạng thái ONGOING trong DB
             int matchId = matchDAO.createMatch(p1.getId(), p2.getId());
             if (matchId > 0) {
@@ -106,7 +117,6 @@ public class ServerGameEventListener implements GameEventListener {
             hB.sendMessage(new MessageDTO("GAME_VIEW", room.viewFor(room.getInviteeId())));
         }
     }
-
     @Override
     public void onCountdown(GameRoom room, int secondsLeft) {
         sendToBoth(room, new MessageDTO("COUNTDOWN", secondsLeft));
@@ -280,21 +290,44 @@ public class ServerGameEventListener implements GameEventListener {
     @Override
     public void onRematchRequested(GameRoom room, String fromPlayerId) {
         String otherId = fromPlayerId.equals(room.getInviterId()) ? room.getInviteeId() : room.getInviterId();
+        ClientHandler sender = getHandler(fromPlayerId);
         ClientHandler otherHandler = getHandler(otherId);
-        if (otherHandler != null) {
-            otherHandler.sendMessage(new MessageDTO("REMATCH_REQUESTED", fromPlayerId));
+
+        // 1. Kiểm tra nếu đối thủ đã Offline
+        if (otherHandler == null || otherHandler.getCurrentUser() == null) {
+            if (sender != null) {
+                sender.sendMessage(new MessageDTO("REMATCH_DECLINED", "Đối thủ hiện đang Offline, không thể tái đấu!"));
+            }
+            return;
         }
+
+        // 2. Kiểm tra nếu đối thủ đã vào một phòng đấu KHÁC
+        GameRoom otherRoom = BattleshipServer.gameManager.findByPlayer(otherId);
+        boolean inAnotherMatch = (otherRoom != null && !otherRoom.getRoomId().equals(room.getRoomId()))
+                || (otherRoom == null && "IN_GAME".equalsIgnoreCase(otherHandler.getCurrentUser().getStatus()));
+
+        if (inAnotherMatch) {
+            if (sender != null) {
+                sender.sendMessage(new MessageDTO("REMATCH_DECLINED", "Đối thủ đang trong trận đấu khác!"));
+            }
+            return;
+        }
+
+        // 3. Gửi popup yêu cầu tái đấu cho đối thủ (dù đối thủ đang ở màn hình kết quả hay đã về sảnh)
+        otherHandler.sendMessage(new MessageDTO("REMATCH_REQUESTED", fromPlayerId));
     }
 
     @Override
     public void onPlayerLeft(GameRoom room, String playerId) {
-        Integer matchId = roomMatchIdMap.get(room.getRoomId());
-        Long startTime = roomStartTimeMap.get(room.getRoomId());
-        if (matchId != null && startTime != null) {
-            int durationSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
-            matchDAO.abortMatch(matchId, durationSeconds);
+        if (room.getPhase() != com.mycompany.battleship.common.model.GamePhase.FINISHED) {
+            Integer matchId = roomMatchIdMap.get(room.getRoomId());
+            Long startTime = roomStartTimeMap.get(room.getRoomId());
+            if (matchId != null && startTime != null) {
+                int durationSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
+                matchDAO.abortMatch(matchId, durationSeconds);
+            }
+            sendToBoth(room, new MessageDTO("PLAYER_LEFT", playerId));
         }
-        sendToBoth(room, new MessageDTO("PLAYER_LEFT", playerId));
     }
 
     @Override
