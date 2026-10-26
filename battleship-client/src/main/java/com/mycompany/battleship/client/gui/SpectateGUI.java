@@ -285,7 +285,7 @@ public class SpectateGUI extends Stage {
 
 
 
-    public void capNhat(JsonObject data) {
+public void capNhat(JsonObject data) {
         String p1 = data.has("player1") ? data.get("player1").getAsString() : "Player 1";
         String p2 = data.has("player2") ? data.get("player2").getAsString() : "Player 2";
         String turn = data.has("currentTurn") && !data.get("currentTurn").isJsonNull() ? data.get("currentTurn").getAsString() : "";
@@ -302,15 +302,19 @@ public class SpectateGUI extends Stage {
         if (data.has("grid1")) renderFleetBoard(p1Cells, parseGrid(data.getAsJsonArray("grid1")));
         if (data.has("grid2")) renderFleetBoard(p2Cells, parseGrid(data.getAsJsonArray("grid2")));
 
-        if ("PLAYING".equalsIgnoreCase(phase) || "COUNTDOWN".equalsIgnoreCase(phase)) {
+        if ("SETUP".equalsIgnoreCase(phase) || "COUNTDOWN".equalsIgnoreCase(phase) || "PLAYING".equalsIgnoreCase(phase)) {
             daHienThongBaoKetThuc = false;
         }
 
-        if (!turn.isEmpty() && !"FINISHED".equalsIgnoreCase(phase)) {
-            turnIndicatorLabel.setText("Lượt bắn: " + turn);
-        } else {
+        if ("SETUP".equalsIgnoreCase(phase)) {
+            turnIndicatorLabel.setText("Đang đặt tàu (45s)...");
+        } else if ("COUNTDOWN".equalsIgnoreCase(phase)) {
+            turnIndicatorLabel.setText("Chuẩn bị chiến đấu...");
+        } else if ("PLAYING".equalsIgnoreCase(phase)) {
+            turnIndicatorLabel.setText(!turn.isEmpty() ? "Lượt bắn: " + turn : "Đang giao tranh...");
+        } else if ("FINISHED".equalsIgnoreCase(phase) || "CLOSED".equalsIgnoreCase(phase)) {
             turnIndicatorLabel.setText("Trận đấu đã kết thúc");
-            if (!daHienThongBaoKetThuc && ("FINISHED".equalsIgnoreCase(phase) || turn.isEmpty())) {
+            if (!daHienThongBaoKetThuc) {
                 daHienThongBaoKetThuc = true;
                 String winner = data.has("winner") && !data.get("winner").isJsonNull() ? data.get("winner").getAsString() : "";
                 String loser = data.has("loser") && !data.get("loser").isJsonNull() ? data.get("loser").getAsString() : "";
@@ -324,7 +328,7 @@ public class SpectateGUI extends Stage {
                 } else if ("LEFT".equalsIgnoreCase(reason)) {
                     lyDoText = "Người chơi " + loser + " đã đầu hàng / rời khỏi trận đấu!";
                 } else {
-                    lyDoText = "Một người chơi đã nhận thất bại.";
+                    lyDoText = "Trận đấu đã khép lại.";
                 }
 
                 Platform.runLater(() -> {

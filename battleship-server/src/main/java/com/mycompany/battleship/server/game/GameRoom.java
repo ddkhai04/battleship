@@ -471,26 +471,93 @@ public class GameRoom {
         beginCountdown();
     }
 
-    private void beginCountdown() {
+private void beginCountdown() {
         cancelPending();
-        rematchRequests.clear();       
-        playerA.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
-        playerB.resetForNewMatch(BoardGenerator.generate(config.getShipLengths(), rng));
+        rematchRequests.clear();
 
-        // Nếu hết 45s mà người chơi chưa đặt đủ 5 tàu, hệ thống tự động sinh ngẫu nhiên
-        int requiredShips = config.getShipLengths().length;
-        if (playerA.board() == null || playerA.board().getShips().size() != requiredShips) {
-            playerA.setBoard(BoardGenerator.generate(config.getShipLengths(), rng));
-        }
-        if (playerB.board() == null || playerB.board().getShips().size() != requiredShips) {
-            playerB.setBoard(BoardGenerator.generate(config.getShipLengths(), rng));
-        }
+        completeBoard(playerA);
+        completeBoard(playerB);
 
         currentTurnId = null;
         phase = GamePhase.COUNTDOWN;
         notifyListener(l -> l.onMatchPrepared(this));
         broadcastGodViewToSpectators();
         countdownStep(config.getCountdownSeconds(), ++epoch);
+    }
+
+    /**
+     * Giữ nguyên vị trí các tàu người chơi đã đặt dở,
+     * tự động xếp ngẫu nhiên các tàu còn thiếu vào các ô trống hợp lệ.
+     */
+    private void completeBoard(PlayerState ps) {
+        int[] requiredLengths = config.getShipLengths();
+        Board currentBoard = ps.board();
+
+        // 1. Nếu chưa đặt tàu nào -> sinh ngẫu nhiên hoàn toàn cả 5 tàu
+        if (currentBoard == null || currentBoard.getShips().isEmpty()) {
+            ps.setBoard(BoardGenerator.generate(requiredLengths, rng));
+            return;
+        }
+
+        List<Ship> existingShips = currentBoard.getShips();
+        // 2. Nếu người chơi đã đặt đủ số lượng tàu quy định -> giữ nguyên 100%
+        if (existingShips.size() == requiredLengths.length) {
+            return;
+        }
+
+        // 3. Tìm danh sách các con tàu còn thiếu
+        List<Integer> missingLengths = new ArrayList<>();
+        for (int len : requiredLengths) {
+            missingLengths.add(len);
+        }
+        for (Ship s : existingShips) {
+            missingLengths.remove(Integer.valueOf(s.getLength()));
+        }
+
+        // Sắp xếp các tàu còn thiếu từ dài đến ngắn để dễ tìm vị trí đặt
+        missingLengths.sort(Collections.reverseOrder());
+
+        // 4. Giữ nguyên tàu đã đặt, thử đặt ngẫu nhiên các tàu còn thiếu
+        for (int attempt = 0; attempt < 500; attempt++) {
+            Board newBoard = new Board();
+
+            // Đặt lại đúng vị trí các con tàu người chơi đã tự xếp
+            for (Ship s : existingShips) {
+                newBoard.addShip(new Ship(newBoard.getShips().size(), s.getCells()));
+            }
+
+            // Tìm vị trí ngẫu nhiên cho từng con tàu còn thiếu
+            boolean allPlaced = true;
+            for (int len : missingLengths) {
+                boolean placed = false;
+                for (int tryCount = 0; tryCount < 200; tryCount++) {
+                    boolean horizontal = rng.nextBoolean();
+                    int r = rng.nextInt(horizontal ? Board.SIZE : Board.SIZE - len + 1);
+                    int c = rng.nextInt(horizontal ? Board.SIZE - len + 1 : Board.SIZE);
+                    List<Point> cells = new ArrayList<>(len);
+                    for (int k = 0; k < len; k++) {
+                        cells.add(horizontal ? new Point(r, c + k) : new Point(r + k, c));
+                    }
+                    if (newBoard.canPlace(cells)) {
+                        newBoard.addShip(new Ship(newBoard.getShips().size(), cells));
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) {
+                    allPlaced = false;
+                    break;
+                }
+            }
+
+            if (allPlaced) {
+                ps.setBoard(newBoard);
+                return;
+            }
+        }
+
+        // Phòng hờ trường hợp người chơi xếp tàu chiếm hết chỗ khiến tàu thiếu không thể đặt hợp lệ
+        ps.setBoard(BoardGenerator.generate(requiredLengths, rng));
     }
 
     private void countdownStep(int remaining, long myEpoch) {
