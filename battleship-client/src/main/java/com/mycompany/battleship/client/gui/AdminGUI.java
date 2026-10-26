@@ -20,7 +20,8 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 /**
  * Màn hình Quản trị (Admin Command Center).
  * Giao diện: header navy + 4 thẻ số liệu nhanh + khung tab (Tài khoản, Giám sát, Biểu đồ nhiệt, Lịch sử).
@@ -34,6 +35,7 @@ public class AdminGUI extends Application {
 
     private Stage primaryStage;
     private Label lblUser;
+    private Timeline autoRefreshTimer;
 
     // Bảng 1: Quản lý tài khoản
     private TableView<String[]> tblUsers;
@@ -99,6 +101,19 @@ public class AdminGUI extends Application {
 
         // Lấy dữ liệu lần đầu tiên khi mở màn hình Admin
         yeuCauDuLieuAdmin();
+        // Tự động làm mới dữ liệu từ Server mỗi 1 giây
+        autoRefreshTimer = new Timeline(new KeyFrame(Duration.seconds(1), e -> {
+            if (primaryStage.isShowing()) {
+                yeuCauDuLieuAdmin();
+            }
+        }));
+        autoRefreshTimer.setCycleCount(Timeline.INDEFINITE);
+        autoRefreshTimer.play();
+
+        // Dừng bộ đếm khi đóng cửa sổ Admin
+        primaryStage.setOnCloseRequest(e -> {
+            if (autoRefreshTimer != null) autoRefreshTimer.stop();
+        });
 
         Scene scene = new Scene(root, 1180, 740);
         scene.getStylesheets().add(duongDanCss());
@@ -212,6 +227,7 @@ public class AdminGUI extends Application {
             case "PLAYING":   return new String[]{"ad-pill-live", "Đang giao tranh"};
             case "COUNTDOWN": return new String[]{"ad-pill-busy", "Đang đếm ngược"};
             case "CREATED":   return new String[]{"ad-pill-offline", "Vừa tạo phòng"};
+            case "SETUP":     return new String[]{"ad-pill-busy", "Đang xếp tàu"};
             case "FINISHED":  return new String[]{"ad-pill-offline", "Chờ tái đấu"};
             default:          return new String[]{"", giaTri};
         }
@@ -342,6 +358,7 @@ public class AdminGUI extends Application {
         Button btnLogout = new Button("Đăng xuất", taoIcon("ic-logout", 15));
         btnLogout.getStyleClass().add("ad-btn-logout");
         btnLogout.setOnAction(e -> {
+            if (autoRefreshTimer != null) autoRefreshTimer.stop();
             SocketClientManager.guiTinNhan(new MessageDTO("LOGOUT", null));
             SocketClientManager.dongKetNoi();
             LoginGUI loginGUI = new LoginGUI();
@@ -417,12 +434,15 @@ public class AdminGUI extends Application {
         for (String[] u : dsUsers) {
             if (!"OFFLINE".equalsIgnoreCase(u[4])) online++;
         }
+        
         lblKpiTongTaiKhoan.setText(String.valueOf(dsUsers.size()));
         lblKpiDangOnline.setText(String.valueOf(online));
         // Chỉ tính phòng đang đếm ngược / đang bắn; phòng FINISHED là đã đánh xong, đang chờ tái đấu
         int dangDau = 0;
         for (String[] m : dsMatches) {
-            if ("PLAYING".equalsIgnoreCase(m[3]) || "COUNTDOWN".equalsIgnoreCase(m[3])) dangDau++;
+            if ("PLAYING".equalsIgnoreCase(m[3]) || "COUNTDOWN".equalsIgnoreCase(m[3]) || "SETUP".equalsIgnoreCase(m[3])) {
+                dangDau++;
+            }
         }
         lblKpiDangDau.setText(String.valueOf(dangDau));
         lblKpiDaKetThuc.setText(String.valueOf(dsFinishedMatches.size()));
@@ -884,6 +904,12 @@ public class AdminGUI extends Application {
      */
     public void capNhatDuLieuAdmin(JsonObject payload) {
         Platform.runLater(() -> {
+            // Lưu lại ID dòng đang chọn trước khi làm mới
+            String selectedUserId = null;
+            if (tblUsers != null && tblUsers.getSelectionModel().getSelectedItem() != null) {
+                selectedUserId = tblUsers.getSelectionModel().getSelectedItem()[0];
+            }
+
             // 1. Cập nhật bảng Users
             if (payload.has("users")) {
                 dsUsers.clear();
@@ -900,6 +926,16 @@ public class AdminGUI extends Application {
                     String losses = String.valueOf(u.get("losses").getAsInt());
 
                     dsUsers.add(new String[]{id, username, nickname, role, status, score, wins, losses});
+                }
+
+                // Khôi phục lại dòng đang chọn
+                if (selectedUserId != null) {
+                    for (int i = 0; i < dsUsers.size(); i++) {
+                        if (selectedUserId.equals(dsUsers.get(i)[0])) {
+                            tblUsers.getSelectionModel().select(i);
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -918,12 +954,12 @@ public class AdminGUI extends Application {
                 }
             }
 
+            // 3. Cập nhật bảng Finished Matches
             if (payload.has("finishedMatches")) {
                 dsFinishedMatches.clear();
                 JsonArray arr = payload.getAsJsonArray("finishedMatches");
                 for (JsonElement el : arr) {
                     JsonObject m = el.getAsJsonObject();
-                    // Ép sang int trước khi chuyển sang chuỗi
                     String id = String.valueOf((int) m.get("matchId").getAsDouble());
                     String p1 = m.get("player1Name").getAsString();
                     String p2 = m.get("player2Name").getAsString();
@@ -933,7 +969,7 @@ public class AdminGUI extends Application {
                 }
             }
 
-            // 3. Đếm lại 4 thẻ số liệu trên đầu màn hình
+            // 4. Đếm lại 4 thẻ số liệu trên đầu màn hình
             capNhatKpi();
         });
     }
