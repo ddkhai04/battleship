@@ -534,7 +534,27 @@ public class SocketClientManager {
                     alert.show();
                 });
                 break;
+                case "CHAT":
+                // Tin chat trong trận: {senderId, text, timestamp} - server gửi cho cả 2 người chơi
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null && payload != null) {
+                        JsonObject obj = JsonParser.parseString(payloadJson).getAsJsonObject();
+                        String nguoiGui = obj.has("senderId") ? obj.get("senderId").getAsString() : "";
+                        String noiDung = obj.has("text") ? obj.get("text").getAsString() : "";
+                        long thoiGian = obj.has("timestamp") ? obj.get("timestamp").getAsLong() : 0;
+                        gameRoomScreen.nhanTinNhanChat(nguoiGui, noiDung, thoiGian);
+                    }
+                });
+                break;
 
+                case "CHAT_ERROR":
+                Platform.runLater(() -> {
+                    if (gameRoomScreen != null) {
+                        String loi = (payload instanceof String) ? (String) payload : "Không gửi được tin nhắn.";
+                        gameRoomScreen.baoLoiChat(loi);
+                    }
+                });
+                break;
             default:
                 System.out.println("[CANH BAO] Khong hieu lenh: " + command);
         }

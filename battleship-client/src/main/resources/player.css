@@ -1104,3 +1104,248 @@
 .pl-game .pl-replay-btn-pause:hover {
     -fx-background-color: linear-gradient(to bottom, #F59E0B, #B45309);
 }
+
+/* ------------------------------------------------------------------ KHUNG CHAT TRONG TRAN */
+.pi-chat  { -fx-shape: "M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"; }
+.pi-send  { -fx-shape: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"; }
+.pi-minus { -fx-shape: "M19 13H5v-2h14v2z"; }
+
+/* Nut tron mo/thu gon chat */
+.pl-game .pl-chat-fab {
+    -fx-background-color: linear-gradient(to bottom right, #2DD4BF, #0D9488);
+    -fx-background-radius: 30px;
+    -fx-background-insets: 0;
+    -fx-border-color: rgba(255, 255, 255, 0.85);
+    -fx-border-width: 2.5;
+    -fx-border-radius: 30px;
+    -fx-min-width: 56px;
+    -fx-min-height: 56px;
+    -fx-pref-width: 56px;
+    -fx-pref-height: 56px;
+    -fx-max-width: 56px;
+    -fx-max-height: 56px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(13, 148, 136, 0.75), 16, 0.15, 0, 4);
+}
+
+.pl-game .pl-chat-fab .pl-icon { -fx-background-color: white; }
+
+.pl-game .pl-chat-fab:hover {
+    -fx-background-color: linear-gradient(to bottom right, #5EEAD4, #14B8A6);
+}
+
+.pl-game .pl-chat-fab-open,
+.pl-game .pl-chat-fab-open:hover {
+    -fx-background-color: linear-gradient(to bottom right, #FF8466, #F2603F);
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.75), 16, 0.15, 0, 4);
+}
+
+/* Cham do dem so tin chua doc */
+.pl-game .pl-chat-badge {
+    -fx-background-color: #EF4444;
+    -fx-background-radius: 12px;
+    -fx-border-color: white;
+    -fx-border-width: 2;
+    -fx-border-radius: 12px;
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-min-width: 22px;
+    -fx-min-height: 22px;
+    -fx-alignment: center;
+    -fx-padding: 0 5 0 5;
+    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.7), 8, 0, 0, 0);
+}
+
+/* Khung chat */
+.pl-game .pl-chat-panel {
+    -fx-background-color: rgba(11, 31, 58, 0.94);
+    -fx-background-radius: 18px;
+    -fx-border-color: rgba(45, 212, 191, 0.45);
+    -fx-border-width: 1.5;
+    -fx-border-radius: 18px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.55), 24, 0, 0, 8);
+}
+
+.pl-game .pl-chat-header {
+    -fx-background-color: linear-gradient(to right, rgba(20, 184, 166, 0.35), rgba(59, 130, 246, 0.25));
+    -fx-background-radius: 17 17 0 0;
+    -fx-padding: 10 12 10 12;
+}
+
+.pl-game .pl-chat-header-icon {
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-background-radius: 10px;
+    -fx-min-width: 32px;
+    -fx-min-height: 32px;
+    -fx-max-width: 32px;
+    -fx-max-height: 32px;
+}
+
+.pl-game .pl-chat-header-icon .pl-icon { -fx-background-color: #5EEAD4; }
+
+.pl-game .pl-chat-title {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.pl-game .pl-chat-sub {
+    -fx-text-fill: rgba(255, 255, 255, 0.70);
+    -fx-font-size: 11px;
+}
+
+.pl-game .pl-chat-dot {
+    -fx-background-color: #34D399;
+    -fx-background-radius: 5px;
+    -fx-min-width: 8px;
+    -fx-min-height: 8px;
+    -fx-max-width: 8px;
+    -fx-max-height: 8px;
+    -fx-effect: dropshadow(gaussian, #34D399, 6, 0.3, 0, 0);
+}
+
+.pl-game .pl-chat-icon-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-background-radius: 8px;
+    -fx-background-insets: 0;
+    -fx-padding: 7;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.pl-game .pl-chat-icon-btn .pl-icon { -fx-background-color: white; }
+
+.pl-game .pl-chat-icon-btn:hover { -fx-background-color: rgba(255, 255, 255, 0.24); }
+
+/* Vung tin nhan: trong suot de thay nen khung */
+.pl-game .pl-chat-scroll,
+.pl-game .pl-chat-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.pl-game .pl-chat-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8px;
+}
+
+.pl-game .pl-chat-scroll .scroll-bar .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.25);
+    -fx-background-radius: 4px;
+}
+
+.pl-game .pl-chat-scroll .scroll-bar .increment-button,
+.pl-game .pl-chat-scroll .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-pref-height: 0;
+}
+
+.pl-game .pl-chat-scroll .scroll-bar .increment-arrow,
+.pl-game .pl-chat-scroll .scroll-bar .decrement-arrow { -fx-padding: 0; }
+
+/* Bong bong tin nhan */
+.pl-game .pl-chat-bubble {
+    -fx-padding: 8 12 8 12;
+    -fx-font-size: 13px;
+}
+
+.pl-game .pl-chat-bubble-me {
+    -fx-background-color: linear-gradient(to bottom right, #FF8466, #F2603F);
+    -fx-background-radius: 14 14 4 14;
+    -fx-text-fill: white;
+}
+
+.pl-game .pl-chat-bubble-them {
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-background-radius: 14 14 14 4;
+    -fx-border-color: rgba(94, 234, 212, 0.35);
+    -fx-border-radius: 14 14 14 4;
+    -fx-text-fill: white;
+}
+
+.pl-game .pl-chat-name {
+    -fx-text-fill: #5EEAD4;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.pl-game .pl-chat-time {
+    -fx-text-fill: rgba(255, 255, 255, 0.45);
+    -fx-font-size: 10px;
+}
+
+.pl-game .pl-chat-system {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 10px;
+    -fx-padding: 4 10 4 10;
+    -fx-text-fill: rgba(255, 255, 255, 0.65);
+    -fx-font-size: 11px;
+    -fx-font-style: italic;
+}
+
+/* Cau nhan nhanh */
+.pl-game .pl-chat-chip {
+    -fx-background-color: rgba(45, 212, 191, 0.14);
+    -fx-background-radius: 12px;
+    -fx-background-insets: 0;
+    -fx-border-color: rgba(45, 212, 191, 0.45);
+    -fx-border-radius: 12px;
+    -fx-text-fill: #99F6E4;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 4 10 4 10;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.pl-game .pl-chat-chip:hover {
+    -fx-background-color: rgba(45, 212, 191, 0.32);
+    -fx-text-fill: white;
+}
+
+/* O nhap + nut gui */
+.pl-game .pl-chat-input {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-background-radius: 20px;
+    -fx-background-insets: 0;
+    -fx-border-color: rgba(255, 255, 255, 0.22);
+    -fx-border-radius: 20px;
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.45);
+    -fx-highlight-fill: #14B8A6;
+    -fx-font-size: 13px;
+    -fx-padding: 8 14 8 14;
+}
+
+.pl-game .pl-chat-input:focused {
+    -fx-border-color: #2DD4BF;
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+}
+
+.pl-game .pl-chat-send {
+    -fx-background-color: linear-gradient(to bottom right, #FF8466, #F2603F);
+    -fx-background-radius: 20px;
+    -fx-background-insets: 0;
+    -fx-min-width: 38px;
+    -fx-min-height: 38px;
+    -fx-max-width: 38px;
+    -fx-max-height: 38px;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(242, 96, 63, 0.55), 10, 0, 0, 2);
+}
+
+.pl-game .pl-chat-send .pl-icon { -fx-background-color: white; }
+
+.pl-game .pl-chat-send:hover {
+    -fx-background-color: linear-gradient(to bottom right, #F2603F, #D94A2B);
+}

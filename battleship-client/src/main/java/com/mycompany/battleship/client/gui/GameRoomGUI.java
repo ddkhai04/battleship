@@ -148,6 +148,8 @@ public class GameRoomGUI extends Application {
 
     private boolean isMyTurn = false;
 
+    private KhungChat khungChat;
+
     public GameRoomGUI() {
         for (int i = 0; i < 5; i++) {
             placedShips.add(null);
@@ -173,6 +175,20 @@ public class GameRoomGUI extends Application {
             }
         } catch (Exception e) {
             System.out.println("Không thể phát âm thanh: " + fileName + " - Lỗi: " + e.getMessage());
+        }
+    }
+
+    /** Nhận 1 tin chat từ server (SocketClientManager gọi khi có lệnh CHAT). */
+    public void nhanTinNhanChat(String nguoiGui, String noiDung, long thoiGian) {
+        if (khungChat != null) {
+            khungChat.themTinNhan(nguoiGui, noiDung, thoiGian);
+        }
+    }
+
+    /** Server từ chối tin chat (CHAT_ERROR), vd gửi quá nhanh -> hiện dòng thông báo trong khung chat. */
+    public void baoLoiChat(String loi) {
+        if (khungChat != null) {
+            khungChat.themDongHeThong(loi);
         }
     }
 
@@ -209,7 +225,12 @@ public class GameRoomGUI extends Application {
         // ... rồi bọc trong Group để khi phóng to/thu nhỏ (scale) StackPane vẫn căn giữa đúng
         Group nhomCoGian = new Group(gameLayout);
 
-        StackPane rootStack = new StackPane(nhomCoGian, countdownOverlay, resultOverlay);
+        // Khung chat nổi ở góc dưới bên trái (nằm dưới lớp đếm ngược / kết quả)
+        khungChat = new KhungChat(player1Name, player2Name);
+        StackPane.setAlignment(khungChat, Pos.BOTTOM_LEFT);
+        StackPane.setMargin(khungChat, new Insets(0, 0, 18, 18));
+
+        StackPane rootStack = new StackPane(nhomCoGian, khungChat, countdownOverlay, resultOverlay);
         rootStack.getStyleClass().addAll("app-background", "pl-game");
 
         Scene scene = new Scene(rootStack, KHUNG_RONG, KHUNG_CAO);
@@ -227,7 +248,9 @@ public class GameRoomGUI extends Application {
 
         // Dùng EventFilter để bắt phím R mọi lúc không bị nút bấm chiếm Focus
         scene.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
-            if (isSetupPhase && !isSetupLocked && e.getCode() == KeyCode.R) {
+            // Đang gõ chat thì phím R là chữ, không phải lệnh xoay tàu
+            boolean dangGoChu = scene.getFocusOwner() instanceof javafx.scene.control.TextInputControl;
+            if (isSetupPhase && !isSetupLocked && !dangGoChu && e.getCode() == KeyCode.R) {
                 handleRotateAction();
                 e.consume();
             }
